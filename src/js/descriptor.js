@@ -1,5 +1,5 @@
 var events = require('events');
-var util = require('util);
+var util = require('util');
 
 var descriptors = require('./descriptor.json');
 

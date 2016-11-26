@@ -6,7 +6,7 @@ We work on STM32F4 board for NuttX and the detail of the reference board is well
 ### Relation with STM board?
 We do not have any business relation with STM board. It is selected because it has enough RAM and Flash ROM, so that development can be more comfortable. And it has lots of pins to play with.
 
-When IoT.js is built up and optimised, it may work in devices having smaller resource.
+When IoT.js is built up and optimized, it may work in devices having smaller resource.
 
 
 ### 1. Prepare for prerequisite
@@ -76,7 +76,7 @@ Library files will be generated like below when build is successful.
 
 ```bash
 $ ls build/arm-nuttx/release/lib
-libhttparser.a libiotjs.a libjerrycore.a libtuv.a
+libhttpparser.a libiotjs.a libjerrycore.a libtuv.a
 ```
 
 ### 4. Build NuttX
@@ -90,7 +90,7 @@ This time make command for NuttX has to be successful unlike above.
 
 #### USB Connection
 
-There are two USB Connections on the Target board. USB mini CN1 and USB micro CN5. Both USB ports need to be connected to your Host. CN1 is used for power and Flashing, but it will not appear as a device in Linux. CN5 is used for NSH and will appear as `/dev/ttyACM0(linux)` or  `/dev/tty.usbmodem1(macOS)` when things work good.
+There are two USB Connections on the Target board. USB mini CN1 and USB micro CN5. Both USB ports need to be connected to your Host. CN1 is used for power and Flashing, but it will not appear as a device in Linux. CN5 is used for NSH and will appear as `/dev/ttyACM0(linux)` or  `/dev/tty.usbmodem1(macOS)` when things work well.
 
 #### Use minicom
 

@@ -63,7 +63,7 @@ def init_option():
     argv = argv + ([arg for arg in sys.argv[1:]
                     if not arg.startswith('--config=')])
 
-    # Prepare aguemnt parser.
+    # Prepare argument parser.
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--buildtype',
@@ -316,6 +316,9 @@ def inflate_cmake_option(cmake_opt, option, for_jerry=False):
     include_dirs.extend(option.external_include_dir)
     cmake_opt.append('-DEXTERNAL_INCLUDE_DIR=' + ' '.join(include_dirs))
 
+    # set target board
+    if option.target_board == 'stm32f4dis':
+        cmake_opt.append('-DCMAKE_TARGET_BOARD=STM32')
 
 def build_tuv(option):
     # Check if libtuv submodule exists.
@@ -753,7 +756,7 @@ if option.clean:
 
 create_build_directories(option)
 
-# Anazlye module dependency
+# Analyze module dependency
 print_progress('Analyze module dependency')
 if not analyze_module_dependency(option):
     ex.fail('Failed to analyze module dependency')

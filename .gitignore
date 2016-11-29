@@ -13,9 +13,6 @@ nbproject
 **.sublime-workspace
 .idea
 
-# deps files
-/deps/nuttx/*
-
 # Random Trash
 *.swp
 *.swo

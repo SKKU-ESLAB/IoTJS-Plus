@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
-var EventEmitter = requre('events').EventEmitter;
+var EventEmitter = require('events').EventEmitter;
 var util = require ('util');
 var assert = require('assert');
 
-var bleCentralBuiltin = process.binding(process.binding.blecentral);
+var descriptors = process.JSONParse(process.readSource("descriptors.json"));
+var services = process.JSONParse(process.readSource("services.json"));
+var characteristics = process.JSONParse(
+    process.readSource("characteristics.json"));
 
+var bleCentralBuiltin = process.binding(process.binding.blecentral);
 function bleCentral() {
   this.state = 'unknown';
   this.address = 'unknown';
@@ -537,4 +541,378 @@ bleCentral.prototype.onHandleNotify = function(peripheralUuid, handle, data) {
 };
 
 module.exports = bleCentral;
+
+//descriptor part (originated from  descriptor.js on Noble)
+function Descriptor(bleCentral, peripheralId, serviceUuid, 
+                    characteristicUuid, uuid) {
+  this._bleCentral = bleCentral;
+  this._peripheralId = peripheralId;
+  this._serviceUuid = serviceUuid;
+  this._characteristicUuid = characteristicUuid;
+
+  this.uuid = uuid;
+  this.name = null;
+  this.type = null;
+
+  var descriptor = descriptors[uuid];
+  if (descriptor) {
+    this.name = descriptor.name;
+    this.type = descriptor.type;
+  }
+}
+
+util.inherits(Descriptor, events.EventEmitter);
+
+Descriptor.prototype.toString = function() {
+  return JSON.stringify({
+    uuid: this.uuid,
+         name: this.name,
+         type: this.type
+  });
+};
+
+Descriptor.prototype.readValue = function(callback) {
+  if (callback) {
+    this.once('valueRead', function(data) {
+      callback(null, data);
+    });
+  }
+
+  this._bleCentral.readValue(
+      this._peripheralId,
+      this._serviceUuid,
+      this._characteristicUuid,
+      this.uuid
+  );
+};
+
+Descriptor.prototype.writeValue = function(data, callback) {
+  if (!(data instanceof Buffer)) {
+    throw new Error('data must be a Buffer');
+  }
+
+  if (callback) {
+    this.once('valueWrite', function() {
+      callback(null);
+    });
+  }
+
+  this._bleCentral.writeValue(
+      this._peripheralId,
+      this._serviceUuid,
+      this._characteristicUuid,
+      this.uuid,
+      data
+  );
+};
+
+
+// Peripheral part (originated from peripheral.js on Noble)
+function Peripheral(bleCentral, id, address, addressType, connectable, 
+                    advertisement, rssi) {
+  this._bleCentral = bleCentral;
+
+  this.id = id;
+  this.uuid = id;
+  this.address = address;
+  this.addressType = addressType;
+  this.connectable = connectable;
+  this.advertisement = advertisement;
+  this.rssi = rssi;
+  this.services = null;
+  this.state = 'disconnected';
+}
+
+util.inherits(Peripheral, events.EventEmitter);
+
+Peripheral.prototype.connect = function(callback) {
+  if (callback) {
+    this.once('connect', function(error) {
+      callback(error);
+    });
+  }
+
+  if (this.state === 'connected') {
+    this.emit('connect', new Error('Peripheral already connected'));
+  } else {
+    this.state = 'connecting';
+    this._bleCentral.connect(this.id);
+  }
+};
+
+Peripheral.prototype.disconnect = function(callback) {
+  if (callback) {
+    this.once('disconnect', function() {
+      callback(null);
+    });
+  }
+
+  this.state = 'disconnecting';
+  this._bleCentral.disconnect(this.id);
+};
+
+Peripheral.prototype.updateRssi = function(callback) {
+  if (callback) {
+    this.once('rssiUpdate', function(rssi) {
+      callback(null, rssi);
+    });
+  }
+
+  this._bleCentral.updateRssi(this.id);
+};
+
+Peripheral.prototype.discoverServices = function(uuids, callback) {
+  if (callback) {
+    this.once('servicesDiscover', function(services) {
+      callback(null, services);
+    });
+  }
+
+  this._bleCentral.discoverServices(this.id, uuids);
+};
+
+
+Peripheral.prototype.discoverServicesAndCharacteristics = 
+function(serviceUuids, characteristicsUuids, callback) {
+  this.discoverServices(serviceUuids, function(err, services) {
+    var numDiscovered = 0;
+    var allCharacteristics = [];
+
+    for (var i in services) {
+      var service = services[i];
+
+      service.discoverCharacteristics(characteristicsUuids, 
+                                      function(error, characteristics) {
+        numDiscovered++;
+        
+        if (error === null) {
+          for (var j in characteristics) {
+            var characteristic = characteristics[j];
+
+            allCharacteristics.push(characteristic);
+          }
+        }
+
+        if (numDiscovered === services.length) {
+          if (callback) {
+            callback(null, services, allCharacteristics);
+          }
+        }
+                                      }.bind(this));
+    }
+  }.bind(this));
+};
+
+
+Peripheral.prototype.discoverAllservicesAndCharacteristics = 
+function(callback) {
+  this.discoverSomeServicesAndCharacteristics([], [], callback);
+};
+
+Peripheral.prototype.readHandle = function(handle, callback) {
+  if (callback) {
+    this.once('handleRead' + handle, function(data) {
+      callback(null, data);
+    });
+  }
+
+  this._bleCentral.readHandle(this.id, handle);
+};
+
+Peripheral.prototype.writeHandle = function(handle, data, 
+                                            withoutResponse, callback) {
+  if(!(data instanceof Buffer)) {
+    throw new Error('data must be a Buffer');
+  }
+
+  if (callback) {
+    this.once('handleWrite' + handle, function() {
+      callback(null);
+    });
+  }
+
+  this._bleCentral.writeHandle(this.id, handle, data, withoutResponse);
+};
+
+// Characteristic part (originated from characteristic.js on Noble)
+function Characteristic(bleCentral, peripheralId, serviceUuid, 
+                        uuid, properties) {
+  this._bleCentral = bleCentral;
+  this._peripheralId = peripheralId;
+  this._serviceUuid = serviceUuid;
+
+  this.uuid = uuid;
+  this.name = null;
+  this.type = null;
+  this.properties = properties;
+  this.descriptors = null;
+
+  var characteristic = characteristics[uuid];
+  if (characteristic) {
+    this.name = characteristic.name;
+    this.type = characteristic.type;
+  }
+}
+
+util.inherits(Characteristic, events.EventEmitter);
+
+Characteristic.prototype.toString = function() {
+  return JSON.stringify({
+    uuid: this.uuid,
+         name: this.name,
+         type: this.type,
+         properties: this.properties
+  });
+};
+
+Characteristic.prototype.read = function(callback) {
+  if (callback) {
+    this.once('read', function(data) {
+      callback(null, read);
+    });
+  }
+
+  this._bleCentral.read(
+      this._peripheralId,
+      this._serviceUuid,
+      this.uuid
+      );
+};
+
+Characteristic.prototype.write = function(data, withoutResponse, callback) {
+
+  //process.title is not supported on iot.js
+  //if (process.title !== 'browser') { //
+  //  if (!(data instanceof Buffer) {
+  //    throw new Error('data must be a Buffer');
+  //  }
+  //}
+
+  if (callback) {
+    this.once('write', function() {
+      callback(null);
+    });
+  }
+
+  this._bleCentral.write(
+      this._peripheralId,
+      this._serviceUuid,
+      this.uuid,
+      data,
+      withoutResponse
+      );
+};
+
+Characteristic.prototype.broadcast = function(broadcast, callback) {
+  if (callback) {
+    this.once('broadcast', function() {
+      callback(null);
+    });
+  }
+
+  this._bleCentral.broadcast(
+      this._peripheralId,
+      this._serviceUuid,
+      this.uuid,
+      broadcast
+      );
+};
+
+Characteristic.prototype.notify = function(notify, callback) {
+  if (callback) {
+    this.once('notify', function() {
+      callback(null);
+    });
+  }
+
+  this._bleCentral.notify(
+      this._peripheralId,
+      this._serviceUuid,
+      this.uuid,
+      notify
+      );
+};
+
+
+Characteristic.prototype.subscribe = function(callback) {
+  this.notify(true, callback);
+};
+
+Characteristic.prototype.unsubscribe = function(callback) {
+  this.notify(false, callback);
+};
+
+Characteristic.discoverDescriptors = function(callback) {
+  if (callback) {
+    this.once('dscriptorsDiscover', function(descriptors) {
+      callback(null, descriptors);
+    });
+  }
+
+  this._bleCentral.discoverDescriptors(
+      this._peripheralId,
+      this._serviceUuid,
+      this.uuid
+      );
+};
+
+
+//service part (originated from service.js on Noble)
+function Service(bleCentral, peripheralId, uuid) {
+  this._bleCentral = bleCentral;
+  this._peripheralId = peripheralId;
+  
+  this.uuid = uuid;
+  this.name = null;
+  this.type = null;
+  this.includedServiceUuids = null;
+  this.characteristics = null;
+
+  var service = services[uuid];
+  if(service) {
+    this.name = service.name;
+    this.type = service.type;
+  }
+}
+
+util.inherits(Service, events.EventEmitter);
+
+Service.prototype.toString = function() {
+  return JSON.stringify({
+    uuid: this.uuid,
+         name: this.name,
+         type: this.type,
+         includedServiceUuids: this.includedServiceUuids
+  });
+};
+
+Service.prototype.discoverIncludedServices = function(serviceUuids, callback) {
+  if (callback) {
+    this.once('includedServicesDiscover', function(includedServiceUuids) {
+      callback(null, includedServiceUuids);
+    });
+  }
+
+  this._bleCentral.discoverIncludedServices(
+      this._peripheralId,
+      this.uuid,
+      serviceUuids
+  );
+};
+
+Service.prototype.discoverCharacteristics = 
+function(characteristicUuids, callback) {
+  if (callback) {
+    this.once('characteristicsDiscover', function(characteristics) {
+      callback(null, characteristics);
+    });
+  }
+
+  this._bleCentral.discoverCharacteristics(
+      this._peripheralId,
+      this.uuid,
+      characteristicUuids
+      );
+};
+
 

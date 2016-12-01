@@ -21,76 +21,66 @@
 #include "iotjs_reqwrap.h"
 
 typedef enum {
-  kBleCentralOpStartScanning,
-  kBleCentralOpStopScanning,
-  kBleCentralOpConnect,
-  kBleCentralOpDisconnect,
-  kBleCentralOpDiscoverServices,
-  kBleCentralOpReadHandle,
-  kBleCentralOpWriteHandle,
-  kBleCentralOpDiscoverIncludedServices,
-  kBleCentralOpDiscoverCharacteristics,
-  kBleCentralOpRead,
-  kBleCentralOpWrite,
-  kBleCentralOpBroadcast,
-  kBleCentralOpNotify,
-  kBleCentralOpDiscoverDescriptors,
-  kBleCentralOpReadValue,
-  kBleCentralOpWriteValue,
-} BleCentralOp;
+  kBlecentralOpStartScanning,
+  kBlecentralOpStopScanning,
+} BlecentralOp;
 
 typedef enum {
-  kBleCentralErrNone = 0,
-  kBleCentralErrFail = -1,
-} BleCentralErr;
+  kBlecentralEvStateChange,
+  kBlecentralEvScanStart,
+  kBlecentralEvScanStop,
+  kBlecentralEvDiscover,
+} BlecentralEv;
+
+typedef enum {
+  kBlecentralErrNone = 0,
+  kBlecentralErrFail = -1,
+} BlecentralErr;
 
 typedef struct {
-  BleCentralOp op;
-  BleCentralErr err;
+  BlecentralOp op;
+  BlecentralErr err;
 } iotjs_blecentral_reqdata_t;
 
 typedef struct {
+  char **svc_uuids;
+  int allow_duplicates;
+} iotjs_blecentral_start_scanning_param_t;
+
+typedef struct {
+  iotjs_reqwrap_t reqwrap;
   uv_work_t req;
   iotjs_blecentral_reqdata_t req_data;
 } IOTJS_VALIDATED_STRUCT(iotjs_blecentral_reqwrap_t);
 
 typedef struct {
   iotjs_jobjectwrap_t jobjectwrap;
+  void *platform_handle;
 } IOTJS_VALIDATED_STRUCT(iotjs_blecentral_t);
 
 iotjs_blecentral_t *iotjs_blecentral_create(const iotjs_jval_t *jble_central);
 const iotjs_jval_t *iotjs_blecentral_get_jblecentral();
 iotjs_blecentral_t *iotjs_blecentral_get_instance();
 
-void binding_start_scanning(const char *svc_uuid, int allow_duplicates);
-void binding_stop_scanning(void);
-void binding_connect(const char *perip_uuid);
-void binding_disconnect(const char *perip_uuid);
-void binding_discover_service(const char *perip_uuid);
-void binding_read_handle(const char *perip_uuid, const char *handle);
-void binding_write_handle(const char *perip_uuid, const char *handle,
-                          const char *buffer, int len, int without_response);
-void binding_discover_included_services(const char *perip_uuid,
-                                        const char *svc_uuid);
-void binding_discover_characteristics(const char *perip_uuid,
-                                      const char *svc_uuid);
-void binding_read(const char *perip_uuid, const char *svc_uuid,
-                  const char *char_uuid);
-void binding_write(const char *perip_uuid, const char *svc_uuid,
-                   const char *char_uuid, const char *buffer, int len,
-                   int without_response);
-void binding_broadcast(const char *perip_uuid, const char *svc_uuid,
-                       const char *char_uuid, int broadcast);
-void binding_notify(const char *perip_uuid, const char *svc_uuid,
-                    const char *char_uuid, int notify);
-void binding_discover_descriptors(const char *perip_uuid, const char *svc_uuid,
-                                  const char *char_uuid);
-void binding_read_value(const char *perip_uuid, const char *svc_uuid,
-                        const char *char_uuid, const char *desc_uuid);
-void binding_write_value(const char *perip_uuid, const char *svc_uuid,
-                         const char *char_uuid, const char *desc_uuid,
-                         const char *buffer, int len);
-void binding_value(void);
-void binding_listen(void);
+#define THIS iotjs_blecentral_reqwrap_t *blecentral_wrap
+iotjs_blecentral_reqwrap_t *
+iotjs_blecentral_reqwrap_create(const iotjs_jval_t *jcallback,
+                                BlecentralOp op);
+void iotjs_blecentral_reqwrap_dispatched(THIS);
+uv_work_t *iotjs_blecentral_reqwrap_req(THIS);
+const iotjs_jval_t *iotjs_blecentral_reqwrap_jcallback(THIS);
+iotjs_blecentral_reqdata_t *iotjs_blecentral_reqwrap_data(THIS);
+iotjs_blecentral_reqwrap_t *
+iotjs_blecentral_reqwrap_from_request(uv_work_t *req);
+void *iotjs_blecentral_req_get_userdata(uv_work_t *req);
+void iotjs_blecentral_req_set_userdata(uv_work_t *req, void *data);
+#undef THIS
+
+void iotjs_blecentral_event_callback(BlecentralEv ev, void *args);
+
+void BlecentralCreate();
+void BlecentralDestroy();
+void StartScanningWorker(uv_work_t *work_req);
+void StopScanningWorker(uv_work_t *work_req);
 
 #endif /* IOTJS_MODULE_BLECENTRAL_H */

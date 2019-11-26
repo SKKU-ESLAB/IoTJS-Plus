@@ -1,4 +1,4 @@
-/* Copyright 2015 Samsung Electronics Co., Ltd.
+/* Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,18 @@
 
 var assert = require('assert');
 
-var module_cache = require('require1/module_cache.js');
-module_cache.i = 100;
-module_cache = require('require1/module_cache.js');
+var dir = process.cwd() + '/run_pass/require1/';
+var dirDoubleDot = dir + '../require1/';
+var dirDot = dir + './';
 
-assert.equal(module_cache.i, 100);
+var moduleCache = require(dir + 'module_cache.js');
+moduleCache.i = 100;
+
+moduleCache = require(dir + 'module_cache.js');
+assert.equal(moduleCache.i, 100);
+
+moduleCache = require(dirDoubleDot + 'module_cache.js');
+assert.equal(moduleCache.i, 100);
+
+moduleCache = require(dirDot + 'module_cache.js');
+assert.equal(moduleCache.i, 100);

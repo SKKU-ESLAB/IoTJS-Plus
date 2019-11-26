@@ -1,4 +1,4 @@
-/* Copyright 2015 Samsung Electronics Co., Ltd.
+/* Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,5 +26,7 @@
 
 IOTJS_EXTERN_C int iotjs_entry(int argc, char** argv);
 
+IOTJS_EXTERN_C void iotjs_conf_console_out(int (*fp)(int level, const char* fmt,
+                                                     ...));
 
 #endif /* IOTJS_IOTJS_H */

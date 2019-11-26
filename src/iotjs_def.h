@@ -1,4 +1,4 @@
-/* Copyright 2015-2016 Samsung Electronics Co., Ltd.
+/* Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,120 +19,89 @@
 
 
 #ifndef IOTJS_MAX_READ_BUFFER_SIZE
-#ifdef __NUTTX__
+#if defined(__NUTTX__) || defined(__TIZENRT__)
 #define IOTJS_MAX_READ_BUFFER_SIZE 1023
 #define IOTJS_MAX_PATH_SIZE 120
-#else
+#else /* !__NUTTX__ && !__TIZENRT__ */
 #define IOTJS_MAX_READ_BUFFER_SIZE 65535
 #define IOTJS_MAX_PATH_SIZE PATH_MAX
-#endif
-#endif
+#endif /* __NUTTX__ || TIZENRT */
+#endif /* IOTJS_MAX_READ_BUFFER_SIZE */
 
 
 #ifndef IOTJS_ASSERT
 #ifdef NDEBUG
 #define IOTJS_ASSERT(x) ((void)(x))
-#else
-#define IOTJS_ASSERT(x) assert(x)
-#endif
-#endif
+#else /* !NDEBUG */
+extern void print_stacktrace(void);
+extern void force_terminate(void);
+#define IOTJS_ASSERT(x)                                                      \
+  do {                                                                       \
+    if (!(x)) {                                                              \
+      fprintf(stderr, "%s:%d: Assertion '%s' failed.\n", __FILE__, __LINE__, \
+              #x);                                                           \
+      print_stacktrace();                                                    \
+      force_terminate();                                                     \
+    }                                                                        \
+  } while (0)
+#endif /* NDEBUG */
+#endif /* IOTJS_ASSERT */
 
-
-#if defined(__ARM__)
+#if defined(__arm__)
 #define TARGET_ARCH "arm"
 #elif defined(__i686__)
 #define TARGET_ARCH "ia32"
 #elif defined(__x86_64__)
 #define TARGET_ARCH "x64"
-#else
+#else /* !__arm__ && !__i686__ && !__x86_64__ */
 #define TARGET_ARCH "unknown"
-#endif
+#endif /* __arm__ */
 
 
-#if defined(__LINUX__)
+#if defined(__linux__)
+#if defined(__TIZEN__)
+#define TARGET_OS "tizen"
+#else
 #define TARGET_OS "linux"
+#endif /* __TIZEN__ */
 #elif defined(__NUTTX__)
 #define TARGET_OS "nuttx"
-#elif defined(__DARWIN__)
+#elif defined(__APPLE__)
 #define TARGET_OS "darwin"
-#else
+#elif defined(__TIZENRT__)
+#define TARGET_OS "tizenrt"
+#elif defined(WIN32)
+#define TARGET_OS "windows"
+#else /* !__linux__ && !__NUTTX__ !__APPLE__ && !__TIZENRT__ && !WIN32 */
 #define TARGET_OS "unknown"
-#endif
+#endif /* __linux__ */
+
+#define IOTJS_VERSION "1.0.0"
 
 #if !defined(STRINGIFY)
 #define STRINGIFY(x) #x
-#endif
+#endif /* STRINGIFY */
 
 #if !defined(TOSTRING)
 #define TOSTRING(x) STRINGIFY(x)
-#endif
-
+#endif /* TOSTRING */
 
 #if !defined(TARGET_BOARD)
 #define TARGET_BOARD "unknown"
-#endif
+#endif /* TARGET_BOARD */
 
+#define NODE_MAJOR_VERSION 1
+#define NODE_MINOR_VERSION 0
+#define NODE_PATCH_VERSION 0
 
-#define IOTJS_VALID_MAGIC_SEQUENCE 0xfee1c001   /* feel cool */
-#define IOTJS_INVALID_MAGIC_SEQUENCE 0xfee1badd /* feel bad */
+/* Avoid compiler warnings if needed. */
+#define IOTJS_UNUSED(x) ((void)(x))
 
-#define IOTJS_DECLARE_THIS(iotjs_classname_t, x) \
-  iotjs_classname_t##_impl_t* _this = &(x)->unsafe;
-
-
-#ifdef NDEBUG
-
-#define IOTJS_VALIDATED_STRUCT(iotjs_classname_t) \
-  iotjs_classname_t##_impl_t;                     \
-  typedef struct iotjs_classname_t {              \
-    iotjs_classname_t##_impl_t unsafe;            \
-  } iotjs_classname_t;
-
-#define IOTJS_VALIDATED_STRUCT_STATIC_INITIALIZER(...) __VA_ARGS__
-
-#define IOTJS_VALIDATED_STRUCT_CONSTRUCTOR(iotjs_classname_t, x) \
-  IOTJS_DECLARE_THIS(iotjs_classname_t, x);
-#define IOTJS_VALIDATED_STRUCT_DESTRUCTOR(iotjs_classname_t, x) \
-  IOTJS_DECLARE_THIS(iotjs_classname_t, x);
-#define IOTJS_VALIDATED_STRUCT_METHOD(iotjs_classname_t, x) \
-  IOTJS_DECLARE_THIS(iotjs_classname_t, x);
-
-#else
-
-#define IOTJS_VALIDATED_STRUCT(iotjs_classname_t) \
-  iotjs_classname_t##_impl_t;                     \
-  typedef struct iotjs_classname_t {              \
-    iotjs_classname_t##_impl_t unsafe;            \
-    uint32_t flag_create;                         \
-    char* valgrind_tracer;                        \
-  } iotjs_classname_t;
-
-#define IOTJS_VALIDATED_STRUCT_STATIC_INITIALIZER(...) \
-  { IOTJS_VALID_MAGIC_SEQUENCE, iotjs_buffer_allocate(4), __VA_ARGS__ }
-
-#define IOTJS_VALIDATE_FLAG(iotjs_classname_t, x)                         \
-  if ((x)->flag_create != IOTJS_VALID_MAGIC_SEQUENCE) {                   \
-    DLOG("`%s %s` is not initialized properly.", #iotjs_classname_t, #x); \
-    IOTJS_ASSERT(false);                                                  \
+#define IOTJS_DEFINE_NATIVE_HANDLE_INFO_THIS_MODULE(name)                  \
+  static void iotjs_##name##_destroy(iotjs_##name##_t* wrap);              \
+  static const jerry_object_native_info_t this_module_native_info = {      \
+    .free_cb = (jerry_object_native_free_callback_t)iotjs_##name##_destroy \
   }
-
-#define IOTJS_VALIDATED_STRUCT_CONSTRUCTOR(iotjs_classname_t, x)      \
-  IOTJS_DECLARE_THIS(iotjs_classname_t, x);                           \
-  /* IOTJS_ASSERT((x)->flag_create != IOTJS_VALID_MAGIC_SEQUENCE); */ \
-  (x)->flag_create = IOTJS_VALID_MAGIC_SEQUENCE;                      \
-  (x)->valgrind_tracer = iotjs_buffer_allocate(4);
-
-#define IOTJS_VALIDATED_STRUCT_DESTRUCTOR(iotjs_classname_t, x) \
-  IOTJS_DECLARE_THIS(iotjs_classname_t, x);                     \
-  IOTJS_VALIDATE_FLAG(iotjs_classname_t, x);                    \
-  (x)->flag_create = IOTJS_INVALID_MAGIC_SEQUENCE;              \
-  iotjs_buffer_release((x)->valgrind_tracer);
-
-#define IOTJS_VALIDATED_STRUCT_METHOD(iotjs_classname_t, x) \
-  IOTJS_DECLARE_THIS(iotjs_classname_t, x);                 \
-  IOTJS_VALIDATE_FLAG(iotjs_classname_t, x);
-
-#endif
 
 #include <uv.h>
 #include <assert.h>
@@ -145,6 +114,7 @@
 #include "iotjs_binding_helper.h"
 #include "iotjs_debuglog.h"
 #include "iotjs_env.h"
+#include "iotjs_magic_strings.h"
 #include "iotjs_module.h"
 #include "iotjs_string.h"
 #include "iotjs_util.h"

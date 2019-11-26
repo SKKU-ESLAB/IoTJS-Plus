@@ -1,4 +1,4 @@
-/* Copyright 2015 Samsung Electronics Co., Ltd.
+/* Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,6 @@
  */
 
 var util = require('util');
-var dnsBuiltin = process.binding(process.binding.dns);
-
-function dnsException(err, syscall, hostname) {
-  var ex = new Error(syscall + ' ' + err + (hostname ? ' ' + hostname : ''));
-  // TODO(hanjoung.lee@samsung.com) err should be a string (currently a number)
-  ex.code = err;
-  ex.errno = err;
-  ex.syscall = syscall;
-  if (hostname) {
-    ex.hostname = hostname;
-  }
-  return ex;
-}
-
 
 exports.lookup = function lookup(hostname, options, callback) {
   var hints = 0;
@@ -59,21 +45,18 @@ exports.lookup = function lookup(hostname, options, callback) {
   if (family !== 0 && family !== 4 && family !== 6)
     throw new TypeError('invalid argument: family must be 4 or 6');
 
-  var err = dnsBuiltin.getaddrinfo(
-      hostname,
-      family,
-      hints,
-      function(err, address, family) {
-        var errObj = null;
-        if (err) {
-          errObj = dnsException(err, 'getaddrinfo', hostname);
-        }
-        return callback(errObj, address, family);
-      });
-  return err;
+  if (process.platform != 'nuttx') {
+    native.getaddrinfo(hostname, family, hints, callback);
+  } else {
+    // native.getaddrinfo is synchronous on these platforms.
+    // needs to be wrapped into an asynchronous call.
+    process.nextTick(function() {
+      native.getaddrinfo(hostname, family, hints, callback);
+    });
+  }
 };
 
 
 // uv_getaddrinfo flags
-exports.ADDRCONFIG = dnsBuiltin.AI_ADDRCONFIG;
-exports.V4MAPPED = dnsBuiltin.AI_V4MAPPED;
+exports.ADDRCONFIG = native.AI_ADDRCONFIG;
+exports.V4MAPPED = native.AI_V4MAPPED;

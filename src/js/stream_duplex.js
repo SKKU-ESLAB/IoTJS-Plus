@@ -1,4 +1,4 @@
-/* Copyright 2015 Samsung Electronics Co., Ltd.
+/* Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,8 @@ function Duplex(options) {
   }
 
   Readable.call(this, options);
+  options = options || {};
+  options._isDuplex = true;
   Writable.call(this, options);
 }
 

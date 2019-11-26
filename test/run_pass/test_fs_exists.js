@@ -1,4 +1,4 @@
-/* Copyright 2016 Samsung Electronics Co., Ltd.
+/* Copyright 2016-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,33 +17,55 @@ var fs = require('fs');
 var assert = require('assert');
 
 {
-  var filePath = "../resources/tobeornottobe.txt";
+  var filePath = process.cwd() + '/resources/tobeornottobe.txt';
 
   fs.exists(filePath, function(exists) {
-    assert.equal(exists, true);
+    assert.equal(exists, true, 'File should exist: ' + filePath);
   });
 }
 
 {
-  var filePath = "../resources/empty.txt";
+  var filePath = '';
+
+  assert.doesNotThrow(function() {
+    fs.exists(filePath, function (exists) {
+      assert.equal(exists, false, 'File with empty name should not exist');
+    });
+  }, 'Checking fs.exists(\'\') without callback does not throw exception');
+
+  assert.doesNotThrow(function() {
+    fs.exists(filePath);
+  }, 'Checking fs.exists(\'\') without callback does not throw exception');
+}
+
+{
+  var filePath = process.cwd() + '/resources/tobeornottobe.txt';
+
+  assert.doesNotThrow(function() {
+    fs.exists(filePath);
+  }, 'Checking fs.exists() for existing file does not throw exception');
+}
+
+{
+  var filePath = process.cwd() + '/resources/empty.txt';
 
   fs.exists(filePath, function(exists) {
-    assert.equal(exists, false);
+    assert.equal(exists, false, 'File should not exist' + filePath);
   });
 }
 
 {
-  var filePath = "";
+  var filePath = '';
 
   fs.exists(filePath, function(exists) {
-    assert.equal(exists, false);
+    assert.equal(exists, false, 'File with empty name should not exist');
   });
 }
 
 {
-  var filePath = " ";
+  var filePath = ' ';
 
   fs.exists(filePath, function(exists) {
-    assert.equal(exists, false);
+    assert.equal(exists, false, 'File name with single whitespace check');
   });
 }

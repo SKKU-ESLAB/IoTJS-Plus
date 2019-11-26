@@ -1,4 +1,4 @@
-/* Copyright 2015 Samsung Electronics Co., Ltd.
+/* Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,9 +13,10 @@
  * limitations under the License.
  */
 
-var EventEmitter = require('events').EventEmitter;
+var EventEmitter = require('events');
 var assert = require('assert');
 
+assert.strictEqual(EventEmitter, EventEmitter.EventEmitter);
 
 var emitter = new EventEmitter();
 
@@ -36,6 +37,42 @@ assert.equal(onceCnt, 1);
 emitter.emit('once');
 assert.equal(onceCnt, 1);
 
+
+{
+  var emit_test = new EventEmitter();
+  emit_test._events = false;
+  emit_test.emit();
+}
+{
+  var emit_test = new EventEmitter();
+  emit_test._events.error = false;
+  emit_test.emit(null);
+}
+{
+  var emit_test = new EventEmitter();
+  emit_test._events = false;
+  assert.throws(function() { emit_test.addListener(null, null); }, TypeError);
+}
+{
+  var emit_test = new EventEmitter();
+  emit_test._events = false;
+  emit_test.addListener('event', function() { });
+}
+{
+  var emit_test = new EventEmitter();
+  assert.throws(function() { emit_test.once(null, null); }, TypeError);
+}
+{
+  var emit_test = new EventEmitter();
+  assert.throws(function() {
+    emit_test.removeListener(null, null);
+  }, TypeError);
+}
+{
+  var emit_test = new EventEmitter();
+  emit_test._events = false;
+  emit_test.removeListener('rmtest', function() { });
+}
 
 emitter.once('once2', function() {
   onceCnt += 1;
@@ -177,3 +214,37 @@ eventSequence += "|";
 
 
 assert.equal(eventSequence, "112123123456677|7||88||123||");
+
+
+/* Test if an event listener for a once
+   call can be removed.
+ */
+var removableListenerCnt = 0;
+function removableListener() {
+  removableListenerCnt++;
+}
+
+emitter.once('onceRemove', removableListener);
+assert.equal(removableListenerCnt, 0);
+emitter.removeListener('onceRemove', removableListener);
+emitter.emit('onceRemove');
+assert.equal(removableListenerCnt, 0,
+    'a listener for a "once" typed event should be removable');
+
+/*
+ * Test when the last listener is removed from an object,
+ * the related property doesn't exist anymore.
+ */
+var listener1 = function() {
+};
+
+emitter.addListener('event1', listener1);
+emitter.removeListener('event1', listener1);
+var res = emitter.emit('event1');
+assert.equal(res, false);
+
+emitter.addListener('event2', listener1);
+emitter.addListener('event2', listener1);
+emitter.removeAllListeners('event2');
+res = emitter.emit('event2');
+assert.equal(res, false);

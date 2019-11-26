@@ -1,4 +1,4 @@
-/* Copyright 2015-2016 Samsung Electronics Co., Ltd.
+/* Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,23 @@
 
 #include "uv.h"
 
+#ifdef JERRY_DEBUGGER
+typedef struct {
+  bool wait_source;
+  bool context_reset;
+  uint16_t port;
+  char channel[16];
+  char protocol[16];
+  char serial_config[64];
+} DebuggerConfig;
+#endif
 
 typedef struct {
-  bool memstat;
-  bool show_opcode;
+  uint32_t memstat : 1;
+  uint32_t show_opcode : 1;
+#ifdef JERRY_DEBUGGER
+  DebuggerConfig* debugger;
+#endif
 } Config;
 
 typedef enum {
@@ -34,7 +47,7 @@ typedef enum {
 
 typedef struct {
   // Number of application arguments including 'iotjs' and app name.
-  int argc;
+  uint32_t argc;
 
   // Application arguments list including 'iotjs' and app name.
   char** argv;
@@ -47,26 +60,31 @@ typedef struct {
 
   // Run config
   Config config;
-} IOTJS_VALIDATED_STRUCT(iotjs_environment_t);
+
+  // Exitcode
+  uint8_t exitcode;
+} iotjs_environment_t;
 
 
-const iotjs_environment_t* iotjs_environment_get();
-void iotjs_environment_release();
+iotjs_environment_t* iotjs_environment_get(void);
+void iotjs_environment_release(void);
 
 bool iotjs_environment_parse_command_line_arguments(iotjs_environment_t* env,
-                                                    int argc, char** argv);
+                                                    uint32_t argc, char** argv);
 
-int iotjs_environment_argc(const iotjs_environment_t* env);
-const char* iotjs_environment_argv(const iotjs_environment_t* env, int idx);
+uint32_t iotjs_environment_argc(const iotjs_environment_t* env);
+const char* iotjs_environment_argv(const iotjs_environment_t* env,
+                                   uint32_t idx);
 
 uv_loop_t* iotjs_environment_loop(const iotjs_environment_t* env);
 void iotjs_environment_set_loop(iotjs_environment_t* env, uv_loop_t* loop);
 
 const Config* iotjs_environment_config(const iotjs_environment_t* env);
+#ifdef JERRY_DEBUGGER
+const DebuggerConfig* iotjs_environment_dconfig(const iotjs_environment_t* env);
+#endif
 
-void iotjs_environment_go_state_running_main(iotjs_environment_t* env);
-void iotjs_environment_go_state_running_loop(iotjs_environment_t* env);
-void iotjs_environment_go_state_exiting(iotjs_environment_t* env);
-
+void iotjs_environment_set_state(iotjs_environment_t* env, State s);
+bool iotjs_environment_is_exiting(iotjs_environment_t* env);
 
 #endif /* IOTJS_ENV_H */

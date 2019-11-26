@@ -1,4 +1,4 @@
-/* Copyright 2015 Samsung Electronics Co., Ltd.
+/* Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,11 +21,11 @@ var assert = require('assert');
 var server = net.createServer();
 var port = 30266;
 
-var server = net.createServer();
 server.listen(port);
 
 server.on('connection', function(socket) {
   socket.on('data', function(data) {
+    server.close()
   });
   socket.on('finish', function() {
     socket.destroy();
@@ -33,12 +33,6 @@ server.on('connection', function(socket) {
     socket.destroy();
   });
 });
-
-
-setTimeout(function() {
-    server.close();
-}, 1000);
-
 
 var socket = new net.Socket();
 socket.connect(port, "127.0.0.1");

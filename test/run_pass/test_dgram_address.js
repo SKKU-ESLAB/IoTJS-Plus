@@ -1,4 +1,4 @@
-/* Copyright 2016 Samsung Electronics Co., Ltd.
+/* Copyright 2016-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@ var dgram = require('dgram');
 
 var port = 41236;
 var msg = 'Hello IoT.js';
-var client = dgram.createSocket('udp4');
-var server = dgram.createSocket('udp4');
+var client = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+var server = dgram.createSocket({ type: 'udp4', reuseAddr: true });
 var server_address, server_port, client_address, client_port;
 
 server.on('error', function(err) {

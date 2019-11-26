@@ -1,4 +1,4 @@
-/* Copyright 2015 Samsung Electronics Co., Ltd.
+/* Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,8 @@
  */
 
 
-var stream = require('stream');
+var Stream = require('stream_internal');
 var util = require('util');
-var Stream = stream.Stream;
-var Duplex = stream.Duplex;
 
 var defaultHighWaterMark = 128;
 
@@ -36,9 +34,9 @@ function WritableState(options) {
   this.length = 0;
 
   // high water mark.
-  // The point where write() starts retuning false.
-  var hwm = options.highWaterMark;
-  this.highWaterMark = (hwm || hwm === 0) ? hwm : defaultHighWaterMark;
+  // The point where write() starts returning false.
+  this.highWaterMark = (options && util.isNumber(options.highWaterMark)) ?
+    options.highWaterMark : defaultHighWaterMark;
 
   // 'true' if stream is ready to write.
   this.ready = false;
@@ -62,7 +60,7 @@ function WritableState(options) {
 
 
 function Writable(options) {
-  if (!(this instanceof Writable) && !(this instanceof stream.Duplex)) {
+  if (!(this instanceof Writable) && options._isDuplex !== true) {
     return new Writable(options);
   }
 
@@ -90,35 +88,36 @@ util.inherits(Writable, Stream);
 //    Writable.prototype._onwrite()
 Writable.prototype.write = function(chunk, callback) {
   var state = this._writableState;
-  var res = false;
 
   if (state.ended) {
     writeAfterEnd(this, callback);
-  } else {
-    res = writeOrBuffer(this, chunk, callback);
+    return false;
   }
 
-  return res;
+  return writeOrBuffer(this, chunk, callback);
 };
 
 
 // This function object never to be called. concrete stream should override
 // this method.
-Writable.prototype._write = function(chunk, callback, onwrite) {
+Writable.prototype._write = function(/* chunk, callback, onwrite */) {
   throw new Error('unreachable');
-}
+};
 
 
 Writable.prototype.end = function(chunk, callback) {
   var state = this._writableState;
 
   // Because NuttX cannot poll 'EOF',so forcely raise EOF event.
-  if (process.platform == 'nuttx') {
+  if (process.platform === 'nuttx') {
     if (!state.ending) {
+      var eof = '\\e\\n\\d';
       if (util.isNullOrUndefined(chunk)) {
-        chunk = '\\e\\n\\d';
+        chunk = eof;
+      } else if (Buffer.isBuffer(chunk)) {
+        chunk = Buffer.concat([chunk, new Buffer(eof)]);
       } else {
-        chunk += '\\e\\n\\d';
+        chunk += eof;
       }
     }
   }
@@ -144,7 +143,7 @@ Writable.prototype._readyToWrite = function() {
 
 
 // A chunk of data has been written down to stream.
-Writable.prototype._onwrite = function(status) {
+Writable.prototype._onwrite = function() {
   var state = this._writableState;
 
   state.length -= state.writingLength;
@@ -161,9 +160,7 @@ function writeAfterEnd(stream, callback) {
   var err = new Error('write after end');
   stream.emit('error', err);
   if (util.isFunction(callback)) {
-    process.nextTick(function(){
-      callback(err);
-    });
+    process.nextTick(callback.bind(undefined, err));
   }
 }
 
@@ -219,12 +216,8 @@ function doWrite(stream, chunk, callback) {
   state.writing = true;
   state.writingLength = chunk.length;
 
-  var afterWrite = function(status) {
-    stream._onwrite(status);
-  };
-
   // Write down the chunk data.
-  stream._write(chunk, callback, afterWrite);
+  stream._write(chunk, callback, stream._onwrite.bind(stream));
 }
 
 
@@ -250,9 +243,7 @@ function endWritable(stream, callback) {
 
   // If nothing left, emit finish event at next tick.
   if (!state.writing && state.buffer.length == 0) {
-    process.nextTick(function(){
-      emitFinish(stream);
-    });
+    process.nextTick(emitFinish.bind(undefined, stream));
   }
 }
 

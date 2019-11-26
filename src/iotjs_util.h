@@ -1,4 +1,4 @@
-/* Copyright 2015-2016 Samsung Electronics Co., Ltd.
+/* Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,20 +18,30 @@
 
 
 #include "iotjs_string.h"
-
+#include "jerryscript.h"
 
 // Return value should be released with iotjs_string_destroy()
 iotjs_string_t iotjs_file_read(const char* path);
 
-char* iotjs_buffer_allocate(unsigned size);
-char* iotjs_buffer_reallocate(char* buffer, unsigned size);
+char* iotjs_buffer_allocate(size_t size);
+char* iotjs_buffer_allocate_from_number_array(size_t size,
+                                              const jerry_value_t array);
+char* iotjs_buffer_reallocate(char* buffer, size_t size);
 void iotjs_buffer_release(char* buff);
+
+void print_stacktrace(void);
 
 #define IOTJS_ALLOC(type) /* Allocate (type)-sized, (type*)-typed memory */ \
   (type*)iotjs_buffer_allocate(sizeof(type))
 
+#define IOTJS_CALLOC(num, type) \
+  (type*)iotjs_buffer_allocate((num * sizeof(type)))
+
 #define IOTJS_RELEASE(ptr) /* Release memory allocated by IOTJS_ALLOC() */ \
-  iotjs_buffer_release((char*)ptr)
+  do {                                                                     \
+    iotjs_buffer_release((char*)ptr);                                      \
+    ptr = NULL;                                                            \
+  } while (0)
 
 
 #endif /* IOTJS_UTIL_H */

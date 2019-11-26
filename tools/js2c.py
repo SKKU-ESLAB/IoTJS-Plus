@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright 2015-2016 Samsung Electronics Co., Ltd.
+# Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,8 +18,6 @@
 # And this file also generates magic string list in src/iotjs_string_ext.inl.h
 # file to reduce JerryScript heap usage.
 
-import sys
-import glob
 import os
 import re
 import subprocess
@@ -29,18 +27,18 @@ from common_py.system.filesystem import FileSystem as fs
 from common_py import path
 
 
-def writeLine(fo, content, indent=0):
-    buf = '  ' * indent
-    buf += content
-    buf += '\n'
-    fo.write(buf)
+def normalize_str(text):
+    if not isinstance(text, str):
+        return text.decode('utf-8')
+
+    return text
 
 
 def regroup(l, n):
     return [l[i:i+n] for i in range(0, len(l), n)]
 
 
-def removeComments(code):
+def remove_comments(code):
     pattern = r'(\".*?\"|\'.*?\')|(/\*.*?\*/|//[^\r\n]*$)'
     regex = re.compile(pattern, re.MULTILINE | re.DOTALL)
 
@@ -53,37 +51,12 @@ def removeComments(code):
     return regex.sub(_replacer, code)
 
 
-def removeWhitespaces(code):
+def remove_whitespaces(code):
     return re.sub('\n+', '\n', re.sub('\n +', '\n', code))
 
 
-def parseLiterals(code):
-    JERRY_SNAPSHOT_VERSION = 6
-
-    literals = set()
-
-    header = struct.unpack('IIII', code[0:16])
-    if header[0] != JERRY_SNAPSHOT_VERSION :
-        print ('Please check jerry snapshot version (Last confirmed: %d)'
-               % JERRY_SNAPSHOT_VERSION)
-        exit(1)
-
-    code_ptr = header[1] + 8
-    while code_ptr < len(code):
-        length = struct.unpack('H', code[code_ptr : code_ptr + 2])[0]
-        code_ptr = code_ptr + 2
-        if length == 0:
-            continue
-        if (length < 32):
-            item = struct.unpack('%ds' % length,
-                                 code[code_ptr : code_ptr + length])
-            literals.add(item[0])
-        code_ptr = code_ptr + length + (length % 2)
-
-    return literals
-
-
-LICENSE = '''/* Copyright 2015-2016 Samsung Electronics Co., Ltd.
+LICENSE = '''
+/* Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the \"License\");
  * you may not use this file except in compliance with the License.
@@ -111,157 +84,336 @@ FOOTER1 = '''
 '''
 
 HEADER2 = '''#include <stdio.h>
+#include <stdint.h>
 #include "iotjs_js.h"
 '''
 
-FOOTER2 = '''
+EMPTY_LINE = '\n'
+
+MAGIC_STRINGS_HEADER = '#define JERRY_MAGIC_STRING_ITEMS \\\n'
+
+MODULE_SNAPSHOT_VARIABLES_H = '''
+extern const char module_{NAME}[];
+extern const uint32_t module_{NAME}_idx;
 '''
 
-HEADER3 = '''
-#define JERRY_MAGIC_STRING_ITEMS \\
-  \\
+MODULE_SNAPSHOT_VARIABLES_C = '''
+#define MODULE_{NAME}_IDX ({IDX})
+const char module_{NAME}[] = "{NAME}";
+const uint32_t module_{NAME}_idx = MODULE_{NAME}_IDX;
 '''
 
-FOOTER3 = '''
+NATIVE_SNAPSHOT_STRUCT_H = '''
+typedef struct {
+  const char* name;
+  const uint32_t idx;
+} iotjs_js_module_t;
+
+extern const iotjs_js_module_t js_modules[];
 '''
 
-NATIVE_STRUCT1 = '''
+MODULE_VARIABLES_H = '''
+extern const char {NAME}_n[];
+extern const uint8_t {NAME}_s[];
+extern const size_t {NAME}_l;
+'''
+
+MODULE_VARIABLES_C = '''
+#define SIZE_{NAME_UPPER} {SIZE}
+const size_t {NAME}_l = SIZE_{NAME_UPPER};
+const char {NAME}_n[] = "{NAME}";
+const uint8_t {NAME}_s[] = {{
+{CODE}
+}};
+'''
+
+NATIVE_STRUCT_H = '''
 typedef struct {
   const char* name;
   const void* code;
-  const int length;
-} iotjs_js_module;
+  const size_t length;
+} iotjs_js_module_t;
 
-extern const iotjs_js_module natives[];
+extern const iotjs_js_module_t js_modules[];
 '''
 
-NATIVE_STRUCT2 = '''
-const iotjs_js_module natives[] = {
+NATIVE_STRUCT_C = '''
+const iotjs_js_module_t js_modules[] = {{
+{MODULES}
+}};
 '''
 
-DUMPER = ''
-NO_SNAPSHOT = True
-BUILDTYPE = 'debug'
-MAGIC_STRING_SET = { 'process' }
 
-def printJSContents(fout_c, name, indent = 0):
+def hex_format(ch):
+    if isinstance(ch, str):
+        ch = ord(ch)
 
-    global DUMPER
-    global NO_SNAPSHOT
-    global BUILDTYPE
-    global MAGIC_STRING_SET
+    return "0x{:02x}".format(ch)
 
-    js_path = fs.join(path.SRC_ROOT, 'js', name + '.js')
 
-    if NO_SNAPSHOT is True:
-        code = open(js_path, 'r').read() + '\0'
+def format_code(code, indent):
+    lines = []
+    # convert all characters to hex format
+    converted_code = map(hex_format, code)
+    # 10 hex number per line
+    for line in regroup(", ".join(converted_code), 10 * 6):
+        lines.append(('  ' * indent) + line.strip())
 
-        # minimize code when release mode
-        if BUILDTYPE != 'debug':
-            code = removeComments(code)
-            code = removeWhitespaces(code)
+    return "\n".join(lines)
 
-        for line in regroup(code, 10):
-            buf = ', '.join(map(lambda ch: str(ord(ch)), line))
-            if line[-1] != '\0':
-                buf += ','
-            writeLine(fout_c, buf, indent)
 
-        length = len(code) - 1
+def merge_snapshots(snapshot_infos, snapshot_tool):
+    output_path = fs.join(path.SRC_ROOT, 'js','merged.modules')
+    cmd = [snapshot_tool, "merge", "-o", output_path]
+    cmd.extend([item['path'] for item in snapshot_infos])
 
-    else:
-        fmodule = open(js_path, 'r')
-        module = fmodule.read()
-        fmodule.close()
+    ret = subprocess.call(cmd)
 
-        fmodule_wrapped = open(js_path + '.wrapped', 'w')
-        if name != 'iotjs':
-            # fmodule_wrapped.write ("(function (a, b, c) {\n")
-            fmodule_wrapped.write(
-                "(function(exports, require, module) {\n")
+    if ret != 0:
+        msg = "Failed to merge %s: - %d" % (snapshot_infos, ret)
+        print("%s%s%s" % ("\033[1;31m", msg, "\033[0m"))
+        exit(1)
 
-        fmodule_wrapped.write(module)
+    for item in snapshot_infos:
+        fs.remove(item['path'])
 
-        if name != 'iotjs':
-            fmodule_wrapped.write("});\n")
-            # fmodule_wrapped.write ("wwwwrap(a, b, c); });\n")
-        fmodule_wrapped.close()
+    with open(output_path, 'rb') as snapshot:
+        code = snapshot.read()
 
-        ret = subprocess.call([DUMPER,
-                               '--save-snapshot-for-eval',
-                               js_path + '.snapshot',
-                               js_path + '.wrapped'])
-        if ret != 0:
-            msg = 'Failed to dump ' + js_path + (": - %d]" % (ret))
-            print "%s%s%s" % ("\033[1;31m", msg, "\033[0m")
+    fs.remove(output_path)
+    return code
+
+
+def get_snapshot_contents(js_path, snapshot_tool, literals=None):
+    """ Convert the given module with the snapshot generator
+        and return the resulting bytes.
+    """
+    wrapped_path = js_path + ".wrapped"
+    snapshot_path = js_path + ".snapshot"
+    module_name = os.path.splitext(os.path.basename(js_path))[0]
+
+    with open(wrapped_path, 'w') as fwrapped, open(js_path, "r") as fmodule:
+        if module_name != "iotjs":
+            fwrapped.write("(function(exports, require, module, native) {\n")
+
+        fwrapped.write(fmodule.read())
+
+        if module_name != "iotjs":
+            fwrapped.write("});\n")
+    cmd = [snapshot_tool, "generate", "-o", snapshot_path]
+    if literals:
+        cmd.extend(["--static", "--load-literals-list-format", literals])
+    ret = subprocess.call(cmd + [wrapped_path])
+
+    fs.remove(wrapped_path)
+    if ret != 0:
+        if literals == None:
+            msg = "Failed to dump %s: - %d" % (js_path, ret)
+            print("%s%s%s" % ("\033[1;31m", msg, "\033[0m"))
             exit(1)
+        else:
+            print("Unable to create static snapshot from '%s'. Falling back "
+                  "to normal snapshot." % js_path)
 
-        code = open(js_path + '.snapshot', 'r').read()
-
-        fs.remove(js_path + '.wrapped')
-        fs.remove(js_path + '.snapshot')
-
-        for line in regroup(code, 8):
-            buf = ', '.join(map(lambda ch: "0x{:02x}".format(ord(ch)),
-                                line))
-            buf += ','
-            writeLine(fout_c, buf, indent)
-
-        length = len(code)
-
-        MAGIC_STRING_SET = MAGIC_STRING_SET | parseLiterals(code)
-
-    return length
+    return snapshot_path
 
 
-def js2c(buildtype, no_snapshot, js_modules, js_dumper):
-    global DUMPER
-    DUMPER = js_dumper
+def get_js_contents(js_path, is_debug_mode=False):
+    """ Read the contents of the given js module. """
+    with open(js_path, "r") as f:
+         code = f.read()
 
-    global NO_SNAPSHOT
-    NO_SNAPSHOT = no_snapshot
+    # minimize code when in release mode
+    if not is_debug_mode:
+        code = remove_comments(code)
+        code = remove_whitespaces(code)
+    return code
 
-    global BUILDTYPE
-    BUILDTYPE = buildtype
 
-    fout_h = open(fs.join(path.SRC_ROOT, 'iotjs_js.h'), 'w')
-    fout_c = open(fs.join(path.SRC_ROOT, 'iotjs_js.c'), 'w')
-    fout_magic_str = open(fs.join(path.SRC_ROOT, 'iotjs_string_ext.inl.h'), 'w')
+def get_literals_from_snapshots(snapshot_tool, snapshot_list):
+    literals_path = fs.join(path.SRC_ROOT, 'js', 'literals.list')
+    cmd = [snapshot_tool, "litdump", "-o", literals_path]
+    cmd.extend(snapshot_list)
 
-    fout_h.write(LICENSE)
-    fout_h.write(HEADER1)
-    fout_c.write(LICENSE)
-    fout_c.write(HEADER2)
-    fout_magic_str.write(LICENSE)
-    fout_magic_str.write(HEADER3)
+    ret = subprocess.call(cmd)
 
-    for name in sorted(js_modules):
-        writeLine(fout_h, 'extern const char ' + name + '_n[];')
-        writeLine(fout_h, 'extern const char ' + name + '_s[];')
-        writeLine(fout_h, 'extern const int ' + name + '_l;')
+    if ret != 0:
+        msg = "Failed to dump the literals: - %d" % ret
+        print("%s%s%s" % ("\033[1;31m", msg, "\033[0m"))
+        exit(1)
 
-        writeLine(fout_c, 'const char ' + name + '_n[] = "' + name + '";')
-        writeLine(fout_c, 'const char ' + name + '_s[] = {')
-        length = printJSContents(fout_c, name, 1)
-        writeLine(fout_c, '};');
-        writeLine(fout_c, '#define SIZE_%s %d' % (name.upper(), length))
-        writeLine(fout_c, 'const int %s_l = SIZE_%s;' % (name, name.upper()))
+    return literals_path
 
-    fout_h.write(NATIVE_STRUCT1)
-    fout_c.write(NATIVE_STRUCT2)
 
-    for name in sorted(js_modules):
-        writeLine(fout_c,
-                  '{ %s_n, %s_s, SIZE_%s },' % (name, name, name.upper()), 1)
-    writeLine(fout_c, '{ NULL, NULL, 0 }', 1)
-    writeLine(fout_c, '};')
+def read_literals(literals_path):
+    literals_set = set()
+    with open(literals_path, 'rb') as fin:
+        num = ''
+        while True:
+            c = normalize_str(fin.read(1))
+            if not c:
+                break
+            elif c == ' ':
+                text = normalize_str(fin.read(int(num)))
+                literals_set.add(text)
+                num = ''
+            else:
+                num += c
 
-    fout_h.write(FOOTER1)
-    fout_c.write(FOOTER2)
+    return literals_set
 
-    global MAGIC_STRING_SET
-    for idx, magic_string in enumerate(sorted(MAGIC_STRING_SET)):
-        fout_magic_str.write('  MAGICSTR_EX_DEF(MAGIC_STR_%d, "%s") \\\n'
-                             % (idx, repr(magic_string)[1:-1]))
 
-    fout_magic_str.write(FOOTER3)
+def write_literals_to_file(literals_set, literals_path):
+    sorted_lit = sorted(literals_set, key=lambda x: (len(x), x))
+    with open(literals_path, 'wb') as flit:
+        for lit in sorted_lit:
+            entry = "%d %s\n" % (len(lit), lit)
+            flit.write(entry.encode('utf-8'))
+
+
+def js2c(options, js_modules):
+    is_debug_mode = (options.buildtype == "debug")
+    snapshot_tool = options.snapshot_tool
+    no_snapshot = (snapshot_tool == None)
+    verbose = options.verbose
+    magic_string_set = set()
+
+    str_const_regex = re.compile('^#define IOTJS_MAGIC_STRING_\w+\s+"(\w+)"$')
+    with open(fs.join(path.SRC_ROOT, 'iotjs_magic_strings.in'), 'r') as fin_h:
+        for line in fin_h:
+            result = str_const_regex.search(line)
+            if result:
+                magic_string_set.add(result.group(1))
+
+    # generate the code for the modules
+    with open(fs.join(path.SRC_ROOT, 'iotjs_js.h'), 'w') as fout_h, \
+         open(fs.join(path.SRC_ROOT, 'iotjs_js.c'), 'w') as fout_c:
+
+        fout_h.write(LICENSE)
+        fout_h.write(HEADER1)
+        fout_c.write(LICENSE)
+        fout_c.write(HEADER2)
+
+        snapshot_infos = []
+        js_module_names = []
+        if no_snapshot:
+            for idx, module in enumerate(sorted(js_modules)):
+                [name, js_path] = module.split('=', 1)
+                js_module_names.append(name)
+                if verbose:
+                    print('Processing module: %s' % name)
+
+                code = get_js_contents(js_path, is_debug_mode)
+                code_string = format_code(code, 1)
+
+                fout_h.write(MODULE_VARIABLES_H.format(NAME=name))
+                fout_c.write(MODULE_VARIABLES_C.format(NAME=name,
+                                                       NAME_UPPER=name.upper(),
+                                                       SIZE=len(code),
+                                                       CODE=code_string))
+            modules_struct = [
+               '  {{ {0}_n, {0}_s, SIZE_{1} }},'.format(name, name.upper())
+               for name in sorted(js_module_names)
+            ]
+            modules_struct.append('  { NULL, NULL, 0 }')
+            native_struct_h = NATIVE_STRUCT_H
+        else:
+            # Generate snapshot files from JS files
+            for idx, module in enumerate(sorted(js_modules)):
+                [name, js_path] = module.split('=', 1)
+                js_module_names.append(name)
+                if verbose:
+                    print('Processing (1st phase) module: %s' % name)
+                code_path = get_snapshot_contents(js_path, snapshot_tool)
+                info = {'name': name, 'path': code_path, 'idx': idx}
+                snapshot_infos.append(info)
+
+            # Get the literal list from the snapshots
+            if verbose:
+                print('Creating literal list file for static snapshot '
+                      'creation')
+            literals_path = get_literals_from_snapshots(snapshot_tool,
+                [info['path'] for info in snapshot_infos])
+            magic_string_set |= read_literals(literals_path)
+            # Update the literals list file
+            write_literals_to_file(magic_string_set, literals_path)
+
+            # Generate static-snapshots if possible
+            for idx, module in enumerate(sorted(js_modules)):
+                [name, js_path] = module.split('=', 1)
+                if verbose:
+                    print('Processing (2nd phase) module: %s' % name)
+
+                get_snapshot_contents(js_path, snapshot_tool, literals_path)
+
+                fout_h.write(MODULE_SNAPSHOT_VARIABLES_H.format(NAME=name))
+                fout_c.write(MODULE_SNAPSHOT_VARIABLES_C.format(NAME=name,
+                                                                IDX=idx))
+            fs.remove(literals_path)
+
+            # Merge the snapshot files
+            code = merge_snapshots(snapshot_infos, snapshot_tool)
+            code_string = format_code(code, 1)
+
+            name = 'iotjs_js_modules'
+            fout_h.write(MODULE_VARIABLES_H.format(NAME=name))
+            fout_c.write(MODULE_VARIABLES_C.format(NAME=name,
+                                                   NAME_UPPER=name.upper(),
+                                                   SIZE=len(code),
+                                                   CODE=code_string))
+            modules_struct = [
+                '  {{ module_{0}, MODULE_{0}_IDX }},'.format(info['name'])
+                for info in snapshot_infos
+            ]
+            modules_struct.append('  { NULL, 0 }')
+            native_struct_h = NATIVE_SNAPSHOT_STRUCT_H
+
+        fout_h.write(native_struct_h)
+        fout_h.write(FOOTER1)
+
+        fout_c.write(NATIVE_STRUCT_C.format(MODULES="\n".join(modules_struct)))
+        fout_c.write(EMPTY_LINE)
+
+    # Write out the external magic strings
+    magic_str_path = fs.join(path.SRC_ROOT, 'iotjs_string_ext.inl.h')
+    with open(magic_str_path, 'w') as fout_magic_str:
+        fout_magic_str.write(LICENSE)
+        fout_magic_str.write(MAGIC_STRINGS_HEADER)
+
+        sorted_strings = sorted(magic_string_set, key=lambda x: (len(x), x))
+        for idx, magic_string in enumerate(sorted_strings):
+            magic_text = repr(magic_string)[1:-1]
+            magic_text = magic_text.replace('"', '\\"')
+
+            fout_magic_str.write('  MAGICSTR_EX_DEF(MAGIC_STR_%d, "%s") \\\n'
+                                 % (idx, magic_text))
+        # an empty line is required to avoid compile warning
+        fout_magic_str.write(EMPTY_LINE)
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--buildtype',
+        choices=['debug', 'release'], default='debug',
+        help='Specify the build type: %(choices)s (default: %(default)s)')
+    parser.add_argument('--modules', required=True,
+        help='List of JS files to process. Format: '
+             '<module_name1>=<js_file1>,<module_name2>=<js_file2>,...')
+    parser.add_argument('--snapshot-tool', default=None,
+        help='Executable to use for generating snapshots and merging them '
+             '(ex.: the JerryScript snapshot tool). '
+             'If not specified the JS files will be directly processed.')
+    parser.add_argument('-v', '--verbose', default=False,
+        help='Enable verbose output.')
+
+    options = parser.parse_args()
+
+    if not options.snapshot_tool:
+        print('Converting JS modules to C arrays (no snapshot)')
+    else:
+        print('Using "%s" as snapshot tool' % options.snapshot_tool)
+
+    modules = options.modules.split(',')
+    js2c(options, modules)

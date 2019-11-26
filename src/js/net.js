@@ -1,4 +1,4 @@
-/* Copyright 2015-2016 Samsung Electronics Co., Ltd.
+/* Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,13 +18,18 @@ var EventEmitter = require('events').EventEmitter;
 var stream = require('stream');
 var util = require('util');
 var assert = require('assert');
-
-var TCP = process.binding(process.binding.tcp);
-
+var Tcp = require('tcp');
 
 function createTCP() {
-  var tcp = new TCP();
-  return tcp;
+  var _tcp = new Tcp();
+  return _tcp;
+}
+
+// Expected end message on nuttx platform.
+var expectedEnding;
+
+if (process.platform == 'nuttx') {
+   expectedEnding = new Buffer('\\e\\n\\d');
 }
 
 
@@ -39,6 +44,7 @@ function SocketState(options) {
   this.readable = true;
 
   this.destroyed = false;
+  this.errored = false;
 
   this.allowHalfOpen = options && options.allowHalfOpen || false;
 }
@@ -49,7 +55,7 @@ function Socket(options) {
     return new Socket(options);
   }
 
-  if (util.isUndefined(options)) {
+  if (options === undefined) {
     options = {};
   }
 
@@ -104,23 +110,26 @@ Socket.prototype.connect = function() {
   var port = options.port;
   var dnsopts = {
     family: options.family >>> 0,
-    hints: 0
+    hints: 0,
   };
 
   if (!util.isNumber(port) || port < 0 || port > 65535)
     throw new RangeError('port should be >= 0 and < 65536: ' + options.port);
 
   if (dnsopts.family !== 0 && dnsopts.family !== 4 && dnsopts.family !== 6)
-    throw new RangeError('port should be 4 or 6: ' + dnsopts.family);
+    throw new RangeError('family should be 4 or 6: ' + dnsopts.family);
 
   self._host = host;
   dns.lookup(host, dnsopts, function(err, ip, family) {
+    if (self._socketState.destroyed) {
+      return;
+    }
     self.emit('lookup', err, ip, family);
 
     if (err) {
       process.nextTick(function() {
         self.emit('error', err);
-        self._destroy();
+        self.destroy();
       });
     } else {
       resetSocketTimeout(self);
@@ -136,26 +145,35 @@ Socket.prototype.write = function(data, callback) {
   if (!util.isString(data) && !util.isBuffer(data)) {
     throw new TypeError('invalid argument');
   }
-
   return stream.Duplex.prototype.write.call(this, data, callback);
 };
 
 
 Socket.prototype._write = function(chunk, callback, afterWrite) {
+  assert(util.isBuffer(chunk));
   assert(util.isFunction(afterWrite));
 
   var self = this;
 
-  resetSocketTimeout(self);
-
-  self._handle.owner = self;
-
-  self._handle.write(chunk, function(status) {
-    afterWrite(status);
+  if (self.errored) {
+    process.nextTick(afterWrite, 1);
     if (util.isFunction(callback)) {
-      callback.call(self, status);
+      process.nextTick(function(self, status) {
+        callback.call(self, status);
+      }, self, 1);
     }
-  });
+  } else {
+    resetSocketTimeout(self);
+
+    self._handle.owner = self;
+
+    self._handle.write(chunk, function(status) {
+      afterWrite(status);
+      if (util.isFunction(callback)) {
+        callback.call(self, status);
+      }
+    });
+  }
 };
 
 
@@ -187,7 +205,7 @@ Socket.prototype.destroy = function() {
   // unset timeout
   clearSocketTimeout(self);
 
-  if (self._writableState.ended) {
+  if (self._writableState.ended && self._handle) {
     close(self);
     state.destroyed = true;
   } else {
@@ -212,7 +230,7 @@ Socket.prototype.destroySoon = function() {
   } else {
     self.once('finish', self.destroy);
   }
-}
+};
 
 
 Socket.prototype.setKeepAlive = function(enable, delay) {
@@ -231,7 +249,7 @@ Socket.prototype.address = function() {
   if (!this._sockname) {
     var out = {};
     var err = this._handle.getsockname(out);
-    if (err) return {};  // FIXME(bnoordhuis) Throw?
+    if (err) return {}; // FIXME(bnoordhuis) Throw?
     this._sockname = out;
   }
   return this._sockname;
@@ -274,11 +292,16 @@ function connect(socket, ip, port) {
       socket.emit('connect');
     } else {
       socket.destroy();
-      emitError(socket, new Error('connect failed - status: ' + status));
+      emitError(socket, new Error('connect failed - status: ' +
+        Tcp.errname(status)));
     }
   };
 
-  socket._handle.connect(ip, port, afterConnect);
+  var err = socket._handle.connect(ip, port, afterConnect);
+  if (err) {
+    emitError(socket, new Error('connect failed - status: ' +
+      Tcp.errname(err)));
+  }
 }
 
 
@@ -288,7 +311,9 @@ function close(socket) {
     socket.emit('close');
   };
 
-  socket._handle.close();
+  var handle = socket._handle;
+  socket._handle = null;
+  handle.close();
 
   if (socket._server) {
     var server = socket._server;
@@ -310,7 +335,7 @@ function resetSocketTimeout(socket) {
       clearSocketTimeout(socket);
     }, socket._timeout);
   }
-};
+}
 
 
 function clearSocketTimeout(socket) {
@@ -318,10 +343,15 @@ function clearSocketTimeout(socket) {
     clearTimeout(socket._timer);
     socket._timer = null;
   }
-};
+}
 
 
 function emitError(socket, err) {
+  socket.errored = true;
+  stream.Duplex.prototype.end.call(socket, '', function() {
+    socket.destroy();
+  });
+  socket._readyToWrite();
   socket.emit('error', err);
 }
 
@@ -330,8 +360,8 @@ function maybeDestroy(socket) {
   var state = socket._socketState;
 
   if (!state.connecting &&
-      !state.writable &&
-      !state.readable) {
+    !state.writable &&
+    !state.readable) {
     socket.destroy();
   }
 }
@@ -375,20 +405,25 @@ function onread(socket, nread, isEOF, buffer) {
     var err = new Error('read error: ' + nread);
     stream.Readable.prototype.error.call(socket, err);
   } else if (nread > 0) {
-    if (process.platform  != 'nuttx') {
+    if (process.platform !== 'nuttx') {
       stream.Readable.prototype.push.call(socket, buffer);
       return;
     }
 
-    var str = buffer.toString();
+    // We know for sure the last 6 characters are going to be the ending.
+    // Lets create a buffer with those 6 characters without toString conversion.
+    var eofLength = 6;
+    var bufferLength = buffer.length;
+
     var eofNeeded = false;
-    if (str.length >= 6
-      && str.substr(str.length - 6, str.length) == '\\e\\n\\d') {
-      eofNeeded  = true;
-      buffer = buffer.slice(0, str.length - 6);
+    if (bufferLength >= eofLength &&
+        expectedEnding.compare(buffer.slice(bufferLength - eofLength,
+                                            bufferLength)) == 0) {
+      eofNeeded = true;
+      buffer = buffer.slice(0, bufferLength - eofLength);
     }
 
-    if (str.length == 6 && eofNeeded) {
+    if (bufferLength == eofLength && eofNeeded) {
       // Socket.prototype.end with no argument
     } else {
       stream.Readable.prototype.push.call(socket, buffer);
@@ -406,12 +441,12 @@ function onSocketFinish() {
   var self = this;
   var state = self._socketState;
 
-  if (!state.readable || self._readableState.ended) {
+  if (!state.readable || self._readableState.ended || !self._handle) {
     // no readable stream or ended, destroy(close) socket.
     return self.destroy();
   } else {
     // Readable stream alive, shutdown only outgoing stream.
-    var err = self._handle.shutdown(function() {
+    self._handle.shutdown(function() {
       if (self._readableState.ended) {
         self.destroy();
       }
@@ -430,7 +465,6 @@ function onSocketEnd() {
     this.destroySoon();
   }
 }
-
 
 
 function Server(options, connectionListener) {
@@ -492,7 +526,7 @@ Server.prototype.listen = function() {
   var err = self._handle.bind(host, port);
   if (err) {
     self._handle.close();
-    return err;
+    return self.emit('error', err);
   }
 
   // listen
@@ -500,11 +534,11 @@ Server.prototype.listen = function() {
   self._handle.createTCP = createTCP;
   self._handle.owner = self;
 
-  var err = self._handle.listen(backlog);
+  err = self._handle.listen(backlog);
 
   if (err) {
     self._handle.close();
-    return err;
+    return self.emit('error', err);
   }
 
   process.nextTick(function() {
@@ -512,6 +546,8 @@ Server.prototype.listen = function() {
       self.emit('listening');
     }
   });
+
+  return this;
 };
 
 
@@ -570,14 +606,14 @@ function onconnection(status, clientHandle) {
   var server = this.owner;
 
   if (status) {
-    server.emit('error', new Error('accept error: ' + status));
+    server.emit('error', new Error('accept error: ' + Tcp.errname(status)));
     return;
   }
 
   // Create socket object for connecting client.
   var socket = new Socket({
     handle: clientHandle,
-    allowHalfOpen: server.allowHalfOpen
+    allowHalfOpen: server.allowHalfOpen,
   });
   socket._server = server;
 
@@ -634,7 +670,7 @@ exports.createServer = function(options, callback) {
 };
 
 
-// net.connect(options[, connectListenr])
+// net.connect(options[, connectListener])
 // net.connect(port[, host][, connectListener])
 exports.connect = exports.createConnection = function() {
   var args = normalizeConnectArgs(arguments);

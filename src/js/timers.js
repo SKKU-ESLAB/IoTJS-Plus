@@ -1,4 +1,4 @@
-/* Copyright 2015 Samsung Electronics Co., Ltd.
+/* Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,37 +13,47 @@
  * limitations under the License.
  */
 
-var Timer = process.binding(process.binding.timer);
-
 var util = require('util');
 
-var TIMEOUT_MAX = 2147483647; // 2^31-1
+var TIMEOUT_MAX = '2147483647.0' - 0; // 2^31-1
+
+var TIMER_TYPES = {
+  setTimeout: 0,
+  setInterval: 1,
+  setImmediate: 2,
+};
 
 
 function Timeout(after) {
   this.after = after;
-  this.isrepeat = false;
+  this.isRepeat = false;
   this.callback = null;
   this.handler = null;
 }
 
 
-Timer.prototype.handleTimeout = function() {
-  var timeout = this.timeoutObj; // 'this' is Timer object
+native.prototype.handleTimeout = function() {
+  var timeout = this.timeoutObj; // 'this' is native object
   if (timeout && timeout.callback) {
-    timeout.callback();
-    if (!timeout.isrepeat) {
-      timeout.close();
+    try {
+      timeout.callback();
+    } catch (e) {
+      timeout.unref();
+      throw e;
+    }
+
+    if (!timeout.isRepeat) {
+      timeout.unref();
     }
   }
 };
 
 
-Timeout.prototype.activate = function() {
+Timeout.prototype.ref = function() {
   var repeat = 0;
-  var handler = new Timer();
+  var handler = new native();
 
-  if (this.isrepeat) {
+  if (this.isRepeat) {
     repeat = this.after;
 
   }
@@ -55,7 +65,7 @@ Timeout.prototype.activate = function() {
 };
 
 
-Timeout.prototype.close = function() {
+Timeout.prototype.unref = function() {
   this.callback = undefined;
   if (this.handler) {
     this.handler.timeoutObj = undefined;
@@ -65,72 +75,52 @@ Timeout.prototype.close = function() {
 };
 
 
-exports.setTimeout = function(callback, delay) {
+function timeoutConfigurator(type, callback, delay) {
   if (!util.isFunction(callback)) {
     throw new TypeError('Bad arguments: callback must be a Function');
   }
 
-  delay *= 1;
-  if (delay < 1 || delay > TIMEOUT_MAX) {
-    delay = 1;
+  if (type === TIMER_TYPES.setImmediate) {
+    delay = 0;
+  } else {
+    delay *= 1;
+    if (delay < 1 || delay > TIMEOUT_MAX) {
+      delay = 1;
+    }
   }
 
   var timeout = new Timeout(delay);
 
   // set timeout handler.
-  if (arguments.length <= 2) {
+  if (arguments.length <= 3) {
     timeout.callback = callback;
   } else {
-    var args = Array.prototype.slice.call(arguments, 2);
-    timeout.callback = function() {
-      callback.apply(timeout, args);
-    };
+    var args = Array.prototype.slice.call(arguments, 3);
+    args.splice(0, 0, timeout);
+    timeout.callback = callback.bind.apply(callback, args);
   }
-
-  timeout.activate();
+  timeout.isRepeat = type == TIMER_TYPES.setInterval;
+  timeout.ref();
 
   return timeout;
-};
+}
 
+exports.setTimeout = timeoutConfigurator.bind(undefined,
+                                              TIMER_TYPES.setTimeout);
+exports.setInterval = timeoutConfigurator.bind(undefined,
+                                               TIMER_TYPES.setInterval);
+exports.setImmediate = timeoutConfigurator.bind(undefined,
+                                                TIMER_TYPES.setImmediate);
 
-exports.clearTimeout = function(timeout) {
-  if (timeout && timeout.callback && (timeout instanceof Timeout))
-    timeout.close();
-  else
-    throw new Error('clearTimeout() - invalid timeout');
-};
-
-
-exports.setInterval = function(callback, repeat) {
-  if (!util.isFunction(callback)) {
-    throw new TypeError('Bad arguments: callback must be a Function');
+function clearTimeoutBase(timeoutType, timeout) {
+  if (timeout) {
+    if (timeout instanceof Timeout) {
+      timeout.unref();
+    } else {
+       throw new Error(timeoutType + '() - invalid timeout');
+    }
   }
+}
 
-  repeat *= 1;
-  if (repeat < 1 || repeat > TIMEOUT_MAX) {
-    repeat = 1;
-  }
-  var timeout = new Timeout(repeat);
-
-  // set interval timeout handler.
-  if (arguments.length <= 2) {
-    timeout.callback = callback;
-  } else {
-    var args = Array.prototype.slice.call(arguments, 2);
-    timeout.callback = function() {
-      callback.apply(timeout, args);
-    };
-  }
-  timeout.isrepeat = true;
-  timeout.activate();
-
-  return timeout;
-};
-
-
-exports.clearInterval = function(timeout) {
-  if (timeout && timeout.isrepeat)
-    timeout.close();
-  else
-    throw new Error('clearInterval() - invalid interval');
-};
+exports.clearTimeout = clearTimeoutBase.bind(undefined, 'clearTimeout');
+exports.clearInterval = clearTimeoutBase.bind(undefined, 'clearInterval');

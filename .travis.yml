@@ -2,21 +2,99 @@ language: c
 
 os: linux
 dist: trusty
-sudo: required
 
-before_install:
-  - if [[ "$INSTALL_ARM_DEPS" == "yes" ]]; then tools/apt-get-install-arm.sh; fi
-  - if [[ "$INSTALL_NUTTX_DEPS" == "yes" ]]; then tools/apt-get-install-nuttx.sh; fi
-  - tools/apt-get-install-deps.sh
-  - deps/jerry/tools/apt-get-install-deps.sh
+services:
+  - docker
 
-install:
+script: tools/travis_script.py
 
-script: "tools/precommit.py $OPTS"
+matrix:
+  include:
+    - name: "Linux/x86-64 Build & Correctness Tests"
+      env:
+      - OPTS="host-linux"
 
-env:
-  - OPTS="--test=host --buildtype=release"
-  - OPTS="--test=host --buildtype=debug"
-  - OPTS="--test=rpi2" INSTALL_ARM_DEPS=yes
-  - OPTS="--test=nuttx" INSTALL_NUTTX_DEPS=yes
-  - OPTS="--test=misc"
+    - name: "Mock Linux Build & Correctness Tests"
+      env:
+      - OPTS="mock-linux"
+
+    - name: "Linux/x86-64 Build with N-API support & Correctness Tests"
+      env:
+      - OPTS="n-api"
+      install:
+        - npm install
+
+    - name: "Raspberry Pi 2 Build Test"
+      env:
+      - OPTS="rpi2"
+
+    - name: "STM32f4 Discovery with Nuttx Build Test"
+      env:
+      - OPTS="stm32f4dis"
+
+    - name: "Tizen Build Test"
+      env:
+      - OPTS="tizen"
+
+    - name: "ECMAScript 2015 features Build & Correctness Tests"
+      env:
+      - OPTS="es2015"
+
+    - name: "External modules Build & Correctness Tests"
+      env:
+      - OPTS="external-modules"
+
+    - name: "Linux/x86-64 without snapshot Build & Correctness Tests"
+      env:
+      - OPTS="no-snapshot"
+
+    - name: "Misc checks (e.g. style checker)"
+      env:
+      - OPTS="misc"
+      addons:
+        apt:
+          packages: [clang-format-3.9, npm, valgrind]
+      install:
+        - npm install eslint
+
+    - name: "OSX/x86-64 Build & Correctness Tests"
+      env:
+      - OPTS="host-darwin"
+      os: osx
+      addons:
+        homebrew:
+          packages: [cmake]
+
+    - name: "ASAN Tests"
+      env:
+      - OPTS="asan"
+
+    - name: "UBSAN Tests"
+      env:
+      - OPTS="ubsan"
+
+    - name: "Coverity Scan"
+      env:
+      - OPTS="coverity"
+      # Declaration of the encrypted COVERITY_SCAN_TOKEN, created via the
+      # "travis encrypt" command using the project repo's public key.
+      - secure: "lUGzoKK/Yn4/OmpqLQALrIgfY9mQWE51deUawPrCO87UQ2GknfQ4BvwY3UT5QY0XnztPBP1+vRQ2qxbiAU7VWicp280sXDnh0FeuZD14FcE9l0FczraL12reoLu+gY5HWFfbkZncmcBsZkxDEYxhkM14FJU8fxyqGQW2ypJNz+gUGP+8r40Re5J3WjcddCQNe5IG8U+M9B4YeDHhN2QspLdN5pkgn56XtdGa3+qbecO2NpjJG5ltM9j1tTuo/Dg22DxrIFVfeFSFKUj4nfMrgPo5LevRsC/lfaBSCsj751eqrxRcQRh2hkpiIJ7mEBs2LL1EH9O6Mbj+eRh8BvIYqTB85VPNFc43sLWk14apcSVBrxJE5j3kP9sAsOD9Y5JynnkeuxYyISrkywwoX2uxsmCzIfGbwsv5VLToQzrqWlGYrHOAmVXNi8561dLfsWwxxFUjdqkZr1Kgc8UfnBEcBUtSiKCHS86/YUUbBJGkEkjDUS0GiqhFY4bXLQCR7EX4qDX3m6p7Mnh4NVUolpnSmyeYE/MjmqQ+7PJsPLL3EcIYmJ7dtW3mZ3yE2NyaFD0Pym9+TiuCCXRtrNVK1M3Kya64KNv+HbhjT/fTCgXLSeyDmJOKVAqugRlDo3b1KGR1LI0AfegzSA6mEC4e9JLjYiSnHPMUahzgLt8oU0hNFRY="
+      addons:
+        coverity_scan:
+          project:
+            name: "jerryscript-project/iotjs"
+            description: "Platform for Internet of Things with JavaScript"
+          notification_email: haesik.jun@samsung.com
+          build_command: "tools/travis_script.py"
+          branch_pattern: master
+
+    - name: "SonarQube"
+      addons:
+        sonarcloud:
+          organization: "pando-project"
+      script: ./tools/check_sonarqube.sh
+      cache:
+        directories:
+          - '$HOME/.sonar/cache'
+
+  fast_finish: true

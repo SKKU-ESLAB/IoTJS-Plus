@@ -1,4 +1,4 @@
-/* Copyright 2015 Samsung Electronics Co., Ltd.
+/* Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,9 +19,10 @@ var util = require('util');
 
 function EventEmitter() {
   this._events = {};
-};
+}
 
-module.exports.EventEmitter = EventEmitter;
+module.exports = EventEmitter;
+EventEmitter.EventEmitter = EventEmitter;
 
 
 EventEmitter.prototype.emit = function(type) {
@@ -35,19 +36,14 @@ EventEmitter.prototype.emit = function(type) {
     if (err instanceof Error) {
       throw err;
     } else {
-      throw Error("Uncaught 'error' event");
+      throw Error('Uncaught \'error\' event');
     }
-    return false;
   }
 
   var listeners = this._events[type];
   if (util.isArray(listeners)) {
     listeners = listeners.slice();
-    var len = arguments.length;
-    var args = new Array(len - 1);
-    for (var i = 1; i < len; ++i) {
-      args[i - 1] = arguments[i];
-    }
+    var args = Array.prototype.slice.call(arguments, 1);
     for (var i = 0; i < listeners.length; ++i) {
       listeners[i].apply(this, args);
     }
@@ -111,13 +107,15 @@ EventEmitter.prototype.removeListener = function(type, listener) {
       if (list[i] == listener ||
           (list[i].listener && list[i].listener == listener)) {
         list.splice(i, 1);
+        if (!list.length) {
+          delete this._events[type];
+        }
         break;
       }
     }
   }
 
   return this;
-
 };
 
 

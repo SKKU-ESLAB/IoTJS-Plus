@@ -1,4 +1,4 @@
-/* Copyright 2015 Samsung Electronics Co., Ltd.
+/* Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,17 +14,15 @@
  */
 
 
-var EE = require('events').EventEmitter;
+var StreamInternal = require('stream_internal');
 var util = require('util');
 
 
 function Stream() {
-  EE.call(this);
-};
+  StreamInternal.call(this);
+}
 
-
-util.inherits(Stream, EE);
-
+util.inherits(Stream, StreamInternal);
 
 exports.Stream = Stream;
 

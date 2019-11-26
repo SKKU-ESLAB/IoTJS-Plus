@@ -1,4 +1,4 @@
-/* Copyright 2015 Samsung Electronics Co., Ltd.
+/* Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,11 +18,11 @@ var fs = require('fs');
 var assert = require('assert');
 
 
-var stats1 = fs.statSync('test_fs_stat.js');
+var stats1 = fs.statSync(process.cwd() + '/run_pass/test_fs_stat.js');
 assert.equal(stats1.isFile(), true);
 assert.equal(stats1.isDirectory(), false);
 
-fs.stat('test_fs_stat.js', function(err, stats) {
+fs.stat(process.cwd() + '/run_pass/test_fs_stat.js', function(err, stats) {
   if (!err) {
     assert.equal(stats.isFile(), true);
     assert.equal(stats.isDirectory(), false);
@@ -33,11 +33,11 @@ fs.stat('test_fs_stat.js', function(err, stats) {
 });
 
 
-var stats2 = fs.statSync('../resources');
+var stats2 = fs.statSync(process.cwd() + '/resources');
 assert.equal(stats2.isDirectory(), true);
 assert.equal(stats2.isFile(), false);
 
-fs.stat('../resources', function(err, stats) {
+fs.stat(process.cwd() + '/resources', function(err, stats) {
   if (!err) {
     assert.equal(stats.isDirectory(), true);
     assert.equal(stats.isFile(), false);
@@ -46,3 +46,12 @@ fs.stat('../resources', function(err, stats) {
     throw err
   }
 });
+
+// fs.statSync throws an exception for a non-existing file.
+try {
+  var stats3 = fs.statSync(process.cwd() + '/non_existing.js');
+  assert.assert(false);
+} catch(e) {
+  assert.equal(e instanceof Error, true);
+  assert.equal(e instanceof assert.AssertionError, false);
+}

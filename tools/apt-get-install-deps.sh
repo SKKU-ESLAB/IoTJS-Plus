@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2016 Samsung Electronics Co., Ltd.
+# Copyright 2016-present Samsung Electronics Co., Ltd. and other contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,4 +16,4 @@
 
 sudo apt-get update -q
 sudo apt-get install -q -y \
-    cmake g++ valgrind clang-format-3.8
+    cmake gcc valgrind clang-format-3.9

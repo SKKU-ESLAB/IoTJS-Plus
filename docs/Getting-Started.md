@@ -1,82 +1,51 @@
-### Overview
-IoT.js is built based on JerryScript(lightweight JavaScript engine) and libuv for asynchronous I/O event handling.
-
-#### Source repositories
-* IoT.js: https://github.com/Samsung/iotjs.git
-* JerryScript: https://github.com/Samsung/jerryscript.git
-* libuv: https://github.com/Samsung/libuv.git
-
-### Build script
-There is a script to help you build IoT.js called "[build.py](../tools/build.py)" in source repository.
-
 ### Supported platforms
-Current supported platforms are **Linux and NuttX**
+Current supported platforms are **Linux, [NuttX][nuttx-site], [Tizen][tizen-site] and [TizenRT][tizenrt-site]**
 
-* [Build for Linux](Build-for-Linux.md): Ubuntu 14.04 is used as a base platform.
-* [Build for NuttX](Build-for-NuttX.md)
-* [Build for Raspberry Pi 2](Build-for-RPi2.md)
+OSX 10.10 as development host
 
-##### Platforms to support
-* OSX 10.10 as development host
-* [Artik 1 =>](https://www.artik.io/hardware/artik-1) as target board
+* [Build for x86 / Linux](build/Build-for-x86-Linux.md): Ubuntu 14.04 is used as a base platform.
+* [Build for Raspberry Pi 2 / Linux](build/Build-for-RPi2-Linux.md)
+* [Build for Raspberry Pi 3 / Tizen](build/Build-for-RPi3-Tizen.md)
+* [Build for Stm32f4 / NuttX](build/Build-for-STM32F4-NuttX.md)
+* [Build for ARTIK053 / TizenRT](build/Build-for-ARTIK053-TizenRT.md)
+* [Build for ARTIK530 / Tizen](build/Build-for-RPi3-Tizen.md)
+* [Build for OpenWrt (non-tested)](build/Build-for-OpenWrt.md)
+* [Build for Windows (experimental)](build/Build-for-Windows.md)
 
-##### H/W boards
+#### H/W boards
 * Current supporting
     * STM32F4-Discovery + BB
     * Raspberry Pi 2
-* Plan to support
-    * Samsung Artik 1
-    * STM32F429-Discovery
-    * STM32F411-Nucleo
-    * Intel Edison
-    * (and your contributions including above plans)
+    * Raspberry Pi 3
+    * Samsung ARTIK 053
+    * Samsung ARTIK 530
 
-We will support the correct behavior of APIs for above environments. However, since IoT.js is targeting various kind IoT devices and platforms, single implementation cannot be the best practice for every environments. Therefore embedders should be in charge of optimization for their own environments. For more details on optimization, see the [Optimization Tips](Optimization-Tips.md) page.
+We will support the correct behavior of APIs for above environments. However, since IoT.js is targeting various kind IoT devices and platforms, single implementation cannot be the best practice for every environments. Therefore embedders should be in charge of optimization for their own environments. For more details on optimization, see the [Optimization Tips](devs/Optimization-Tips.md) page.
 
-### For Developers
 
-#### How to Test
+### Build script
+There is a [script](build/Build-Script.md) to help you build IoT.js called "[build.py](https://github.com/jerryscript-project/iotjs/blob/master/tools/build.py)" in source repository. Run `tools/build.py --help` command to check all of the build options.
 
-When you build ``iotjs`` binary successfully, you can run test driver with this binary.
+#### How to Build
 
 ```bash
-/path/to/iotjs tools/check_test.js
+  tools/build.py --clean
 ```
 
-##### Set test options
+#### Frequently used build options
 
-Some basic options are provided.
+`--clean` Clean build directory before build (default: False).
 
-Existing test options are listed as follows;
-```
-start-from
-quiet=yes|no (default is yes)
-output-file
-```
+`--no-snapshot` Disable snapshot generation for IoT.js. It is useful for debugging sessions.
 
-To give options, please use two dashes '--' **once** before the option name as described in the following sections.
+`--profile PROFILE` Specify the module profile file for IoT.js. It is used for enable and disable modules. See also ["How to write a new module"](devs/Writing-New-Module.md#profile)
 
-Options that may need explanations.
-* start-from: a test case file name where the driver starts.
-* quiet: a flag that indicates if the driver suppresses console outputs of test case.
-* output-file: a file name where the driver leaves output.
+`--run-test [{full,quiet}]` Execute tests after build, optional argument specifies the level of output for the test runner.
 
-##### Options example
+`--jerry-debugger` Enable JerryScript debugger, so JavaScript could can be investigated with an available debugger client (eg.: [Python Debugger Console](https://github.com/jerryscript-project/jerryscript/blob/master/jerry-debugger/jerry_client.py) or [IoT.js Code](https://github.com/jerryscript-project/iotjscode/)). See also ["Use JerryScript Debugger"](devs/Use-JerryScript-Debugger.md).
 
-```bash
-build/x86_64-linux/debug/bin/iotjs tools/check_test.js -- start-from=test_console.js quiet=no
-```
+`--js-backtrace {ON,OFF}` Enable/disable backtrace information of JavaScript code (default: ON in debug and OFF in release build).
 
-##### To write a test case
-
-1. Write a test case inside test directory.
-2. List up a test case in **test/testsets.js**. (this procedure will be removed after ``fs.readDir[Sync]`` is implemented.)
-3. Set attributes on the test case if it needs in **attrs.js** where the directory of your test case belongs.
-
-#### Advanced Topics
-You can refer to [Writing new IoT.js builtin module](Writing-New-Builtin-Module.md) and [Optimization Tips](Optimization-Tips.md) pages for detailed information.
-
-### When something goes wrong
-Please read the [Logging IoT.js execution](Logging-IoT.js-execution.md) page how to display and add log messages while developing.
-
-### [IoT.js API Reference](IoT.js-API-reference.md)
+[nuttx-site]: http://nuttx.org/
+[tizen-site]: https://www.tizen.org/
+[tizenrt-site]: https://wiki.tizen.org/Tizen_RT

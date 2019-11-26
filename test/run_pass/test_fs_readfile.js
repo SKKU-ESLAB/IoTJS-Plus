@@ -1,4 +1,4 @@
-/* Copyright 2015 Samsung Electronics Co., Ltd.
+/* Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 var fs = require('fs');
 var assert = require('assert');
 
-var filePath = "../resources/tobeornottobe.txt";
+var filePath = process.cwd() + "/resources/tobeornottobe.txt";
 
 fs.readFile(filePath, function(err, data) {
   assert.equal(err, null);

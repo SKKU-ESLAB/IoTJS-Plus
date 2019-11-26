@@ -1,4 +1,4 @@
-/* Copyright 2016 Samsung Electronics Co., Ltd.
+/* Copyright 2016-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,14 @@
 var fs = require('fs');
 var assert = require('assert');
 
-var path = '../resources/readdir'
+var path = process.cwd() + '/resources/readdir'
 var ans = 'DO_NOT_MODIFY_THIS_FOLDER\n'+
           'This_is_a_directory\n'+
           'This_is_another_directory\n'+
           'regular.txt\n';
 
 var res;
-var items;
+var items, i;
 
 res = "";
 items = fs.readdirSync(path);

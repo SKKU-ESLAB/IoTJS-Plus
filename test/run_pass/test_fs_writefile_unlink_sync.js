@@ -1,4 +1,4 @@
-/* Copyright 2016 Samsung Electronics Co., Ltd.
+/* Copyright 2016-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,12 @@
 var fs = require('fs');
 var assert = require('assert');
 
-var file1 = "../resources/tobeornottobe.txt";
-var file2 = "../resources/tobeornottobe_sync.txt";
+var file1 = process.cwd() + '/resources/tobeornottobe.txt';
+var file2 = process.cwd() + '/resources/tobeornottobe_sync.txt';
+
+if (process.platform === 'tizenrt') {
+  file2 = '/mnt/tobeornottobe_sync.txt';
+}
 
 /* make a new file2 from file1 */
 var buf1 = fs.readFileSync(file1);

@@ -19,7 +19,7 @@
 // ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-/* Copyright 2015 Samsung Electronics Co., Ltd.
+/* Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,15 +53,7 @@ util.inherits(AssertionError, Error);
 
 
 function getMessage(assertion) {
-  // FIXME: use `JSON.stringify` to generate assertion message.
-  var msg  = '{ actual: '
-           + assertion.actual
-           + ', expected: '
-           + assertion.expected
-           + ', operator: '
-           + assertion.operator
-           + ' }';
-  return msg;
+  return JSON.stringify(assertion, ['actual', 'expected', 'operator']);
 }
 
 
@@ -77,7 +69,7 @@ function fail(actual, expected, message, operator) {
     message: message,
     actual: actual,
     expected: expected,
-    operator: operator
+    operator: operator,
   });
 }
 
@@ -125,7 +117,7 @@ function throws(block, expected, message) {
   if (!actual) {
     fail(actual, expected, 'Missing expected exception' + message);
   }
-  if (!(actual instanceof expected)) {
+  if (expected && !(actual instanceof expected)) {
     throw actual;
   }
 }

@@ -1,4 +1,4 @@
-/* Copyright 2015 Samsung Electronics Co., Ltd.
+/* Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 
 
 var util = require('util');
-var consoleBuiltin = process.binding(process.binding.console);
 
 
 function Console() {
@@ -24,13 +23,13 @@ function Console() {
 
 Console.prototype.log =
 Console.prototype.info = function() {
-  consoleBuiltin.stdout(util.format.apply(this, arguments) + '\n');
+  native.stdout(util.format.apply(this, arguments) + '\n');
 };
 
 
 Console.prototype.warn =
 Console.prototype.error = function() {
-  consoleBuiltin.stderr(util.format.apply(this, arguments) + '\n');
+  native.stderr(util.format.apply(this, arguments) + '\n');
 };
 
 

@@ -1,4 +1,4 @@
-/* Copyright 2015 Samsung Electronics Co., Ltd.
+/* Copyright 2015-present Samsung Electronics Co., Ltd. and other contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ function IncomingMessage(socket) {
   stream.Readable.call(this);
 
   this.socket = socket;
-  this.connection = socket;
 
   this.readable = true;
 
@@ -32,6 +31,7 @@ function IncomingMessage(socket) {
   // for request (server)
   this.url = '';
   this.method = null;
+  this.httpVersion = '';
 
   // for response (client)
   this.statusCode = null;

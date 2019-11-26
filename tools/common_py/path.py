@@ -1,4 +1,4 @@
-# Copyright 2016 Samsung Electronics Co., Ltd.
+# Copyright 2016-present Samsung Electronics Co., Ltd. and other contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,8 +40,11 @@ RUN_FAIL_DIR = fs.join(TEST_ROOT, 'run_fail')
 
 RESOURCE_DIR = fs.join(TEST_ROOT, 'resources')
 
-# Root directory for jerry script submodule.
+# Root directory for JerryScript submodule.
 JERRY_ROOT = fs.join(DEPS_ROOT, 'jerry')
+
+# Root directory of JerryScript profiles.
+JERRY_PROFILE_ROOT = fs.join(JERRY_ROOT, 'jerry-core', 'profiles')
 
 # Root directory for libtuv submodule.
 TUV_ROOT = fs.join(DEPS_ROOT, 'libtuv')
@@ -49,8 +52,8 @@ TUV_ROOT = fs.join(DEPS_ROOT, 'libtuv')
 # Root directory for http-parser submodule.
 HTTPPARSER_ROOT = fs.join(DEPS_ROOT, 'http-parser')
 
-# checktest
-CHECKTEST_PATH = fs.join(TOOLS_ROOT, 'check_test.js')
-
 # Build configuration file path.
 BUILD_CONFIG_PATH = fs.join(PROJECT_ROOT, 'build.config')
+
+# IoT.js build information.
+BUILD_INFO_PATH = fs.join(TEST_ROOT, 'tools', 'iotjs_build_info.js')

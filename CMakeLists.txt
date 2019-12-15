@@ -101,6 +101,8 @@ endif()
 # Add arch-dependant flags
 if("${TARGET_ARCH}" STREQUAL "arm")
   iotjs_add_compile_flags(-D__arm__ -mthumb -fno-short-enums -mlittle-endian)
+elseif("${TARGET_ARCH}" STREQUAL "aarch64")
+  iotjs_add_compile_flags(-D__aarch64__ -fno-short-enums -mlittle-endian)
 elseif("${TARGET_ARCH}" STREQUAL "i686")
   iotjs_add_compile_flags(-D__i686__ -D__x86__)
   if(NOT USING_MSVC)

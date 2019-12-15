@@ -144,12 +144,12 @@ def init_options():
         help='The location of the development tree root directory (sysroot). '
              'Must be compatible with used toolchain.')
     iotjs_group.add_argument('--target-arch',
-        choices=['arm', 'x86', 'i686', 'x86_64', 'x64', 'mips', 'noarch'],
+        choices=['arm', 'aarch64', 'x86', 'i686', 'x86_64', 'x64', 'mips', 'noarch'],
         default=platform.arch(),
         help='Specify the target architecture (default: %(default)s).')
     iotjs_group.add_argument('--target-board',
         choices=[None, 'artik10', 'stm32f4dis', 'stm32f7nucleo',
-                 'rpi2', 'rpi3', 'artik05x'],
+                 'rpi2', 'rpi3', 'tx2', 'artik05x'],
         default=None, help='Specify the target board (default: %(default)s).')
     iotjs_group.add_argument('--target-os',
         choices=['linux', 'darwin', 'osx', 'mock', 'nuttx', 'tizen', 'tizenrt',
@@ -225,7 +225,7 @@ def adjust_options(options):
     if options.target_os == 'darwin':
         options.no_check_valgrind = True
 
-    if options.target_board in ['rpi2', 'rpi3', 'artik10', 'artik05x']:
+    if options.target_board in ['rpi2', 'rpi3', 'tx2', 'artik10', 'artik05x']:
         options.no_check_valgrind = True
 
     # Then add calculated options.

@@ -14,8 +14,9 @@
  */
 
 
-var adc = require('adc');
+var Adc = require('adc');
 var assert = require('assert');
+var adc = new Adc();
 var configuration = {};
 
 if (process.platform === 'linux') {
@@ -26,18 +27,18 @@ if (process.platform === 'linux') {
 } else if (process.platform === 'tizenrt') {
   configuration.pin = 0;
 } else {
-  assert.assert(false, "Unsupported platform: " + process.platform);
+  assert.fail();
 }
 
-// start async test
 asyncTest();
 
+// read async test
 function asyncTest() {
   var adc0 = adc.open(configuration, function(err) {
     console.log('ADC initialized');
 
     if (err) {
-      assert.assert(false, "Failed to open device.");
+      assert.fail();
     }
 
     var loopCnt = 5;
@@ -47,16 +48,13 @@ function asyncTest() {
       if (--loopCnt < 0) {
         console.log('test1 complete');
         clearInterval(test1Loop);
-        adc0.close(function (err) {
-          assert.equal(err, null);
-
-          // start sync test
-          syncTest();
-        });
+        adc0.closeSync();
+        syncTestst();
       } else {
         adc0.read(function(err, value) {
           if (err) {
-            assert.assert(false, "Failed to read device.");
+            console.log('read failed');
+            assert.fail();
           }
 
           console.log(value);
@@ -66,31 +64,33 @@ function asyncTest() {
   });
 }
 
-function syncTest() {
-  var adc0 = adc.openSync(configuration);
-  console.log('ADC initialized');
+// read sync test
+function syncTestst() {
+  var adc0 = adc.open(configuration, function(err) {
+    console.log('ADC initialized');
 
-  var loopCnt = 5,
-      value = -1;
-
-  console.log('test2 start(read sync test)');
-  var test2Loop = setInterval(function() {
-    if (--loopCnt < 0) {
-      console.log('test2 complete');
-      clearInterval(test2Loop);
-      adc0.closeSync();
-    } else {
-      value = adc0.readSync();
-      if (value < 0) {
-        assert.assert(false, "Failed to read device.");
-      } else {
-        console.log(value);
-      }
+    if (err) {
+      assert.fail();
     }
-  }, 1000);
-}
 
-// error test
-assert.throws(function() {
-   var adc = adc.open(configuration);
-}, TypeError, 'Calling adc.open without a callback function.');
+    var loopCnt = 5,
+        value = -1;
+
+    console.log('test2 start(read sync test)');
+    var test2Loop = setInterval(function() {
+      if (--loopCnt < 0) {
+        console.log('test2 complete');
+        clearInterval(test2Loop);
+        adc0.close();
+      } else {
+        value = adc0.readSync();
+        if (value < 0) {
+          console.log('read failed');
+          assert.fail();
+        } else {
+          console.log(value);
+        }
+      }
+    }, 1000);
+  });
+}

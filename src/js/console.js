@@ -15,6 +15,7 @@
 
 
 var util = require('util');
+var consoleBuiltin = process.binding(process.binding.console);
 
 
 function Console() {
@@ -23,13 +24,17 @@ function Console() {
 
 Console.prototype.log =
 Console.prototype.info = function() {
-  native.stdout(util.format.apply(this, arguments) + '\n');
+  consoleBuiltin.stdout(util.format.apply(this, arguments) + '\n');
 };
 
 
 Console.prototype.warn =
 Console.prototype.error = function() {
-  native.stderr(util.format.apply(this, arguments) + '\n');
+  consoleBuiltin.stderr(util.format.apply(this, arguments) + '\n');
+};
+
+Console.prototype.reboot = function() {
+  consoleBuiltin.reboot();
 };
 
 

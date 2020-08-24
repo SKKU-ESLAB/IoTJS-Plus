@@ -12,6 +12,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+var bufferBuiltin = process.binding(process.binding.buffer);
+var util = require('util');
 
 
 function checkInt(buffer, value, offset, ext, max, min) {
@@ -28,18 +51,6 @@ function checkOffset(offset, ext, length) {
 }
 
 
-function getEncodingType(encoding) {
-  switch (encoding) {
-    case 'hex':
-      return 0;
-    case 'base64':
-      return 1;
-    default:
-      return -1;
-  }
-}
-
-
 // Buffer constructor
 // [1] new Buffer(size)
 // [2] new Buffer(buffer)
@@ -47,81 +58,69 @@ function getEncodingType(encoding) {
 // [4] new Buffer(string, encoding)
 // [5] new Buffer(array)
 function Buffer(subject, encoding) {
-  if (!Buffer.isBuffer(this)) {
-    return new Buffer(subject, encoding);
+  if (!util.isBuffer(this)) {
+    return new Buffer(subject);
   }
 
-  if (typeof subject === 'number') {
+  if (util.isNumber(subject)) {
     this.length = subject > 0 ? subject >>> 0 : 0;
-  } else if (typeof subject === 'string') {
+  } else if (util.isString(subject)) {
     this.length = Buffer.byteLength(subject, encoding);
-  } else if (Buffer.isBuffer(subject) || Array.isArray(subject)) {
+  } else if (util.isBuffer(subject) || util.isArray(subject)) {
     this.length = subject.length;
   } else {
     throw new TypeError('Bad arguments: Buffer(string|number|Buffer|Array)');
   }
 
-  // 'native' is the buffer object created via the C API.
-  native(this, this.length);
+  this._builtin = new bufferBuiltin(this, this.length);
 
-  if (typeof subject === 'string') {
-    if (typeof encoding === 'string') {
-      encoding = getEncodingType(encoding);
-      if (encoding != -1) {
-        native.writeDecode(this, encoding, subject, 0, this.length);
-      } else {
-        this.write(subject);
+  if (util.isString(subject)) {
+    if (encoding !== undefined && util.isString(encoding)) {
+      switch (encoding) {
+        case 'hex':
+          if (this._builtin.hexWrite(subject, 0, this.length) != this.length) {
+            throw new TypeError('Invalid hex string');
+          }
+          break;
+        default:
+          this.write(subject);
       }
     } else {
       this.write(subject);
     }
-  } else if (Buffer.isBuffer(subject)) {
+  } else if (util.isBuffer(subject)) {
     subject.copy(this);
-  } else if (Array.isArray(subject)) {
+  } else if (util.isArray(subject)) {
     for (var i = 0; i < this.length; ++i) {
-      native.writeUInt8(this, subject[i], i);
+      this._builtin.writeUInt8(subject[i], i);
     }
   }
 }
 
 
-// Buffer.byteLength(string, encoding)
+// Buffer.byteLength(string)
 Buffer.byteLength = function(str, encoding) {
-  var bytes = native.byteLength(str);
+  var len = bufferBuiltin.byteLength(str);
 
-  if (typeof encoding === 'string') {
-    /* Might be invalid for incorrectly encoded strings. */
+  if (encoding !== undefined && util.isString(encoding)) {
     switch (encoding) {
       case 'hex':
-        return bytes >>> 1;
-      case 'base64':
-        var len = str.length;
-
-        if (len >= 4 && str.charCodeAt(len - 1) === 0x3D) {
-           len--;
-
-          if (str.charCodeAt(len - 2) === 0x3D) {
-            len--;
-          }
-        }
-
-        return len;
+        return len >>> 1;
     }
   }
-  return bytes;
+  return len;
 };
 
 
 // Buffer.concat(list)
 Buffer.concat = function(list) {
-  if (!Array.isArray(list)) {
+  if (!util.isArray(list)) {
     throw new TypeError('Bad arguments: Buffer.concat([Buffer])');
   }
 
   var length = 0;
-  var i;
-  for (i = 0; i < list.length; ++i) {
-    if (!Buffer.isBuffer(list[i])) {
+  for (var i = 0; i < list.length; ++i) {
+    if (!util.isBuffer(list[i])) {
       throw new TypeError('Bad arguments: Buffer.concat([Buffer])');
     }
     length += list[i].length;
@@ -129,7 +128,7 @@ Buffer.concat = function(list) {
 
   var buffer = new Buffer(length);
   var pos = 0;
-  for (i = 0; i < list.length; ++i) {
+  for (var i = 0; i < list.length; ++i) {
     list[i].copy(buffer, pos);
     pos += list[i].length;
   }
@@ -139,28 +138,28 @@ Buffer.concat = function(list) {
 
 
 // Buffer.isBuffer(object)
-Buffer.isBuffer = function(arg) {
-  return arg instanceof Buffer;
+Buffer.isBuffer = function(object) {
+  return util.isBuffer(object);
 };
 
 
 // buffer.equals(otherBuffer)
 Buffer.prototype.equals = function(otherBuffer) {
-  if (!Buffer.isBuffer(otherBuffer)) {
+  if (!util.isBuffer(otherBuffer)) {
     throw new TypeError('Bad arguments: buffer.equals(Buffer)');
   }
 
-  return native.compare(this, otherBuffer) == 0;
+  return this._builtin.compare(otherBuffer._builtin) == 0;
 };
 
 
 // buffer.compare(otherBuffer)
 Buffer.prototype.compare = function(otherBuffer) {
-  if (!Buffer.isBuffer(otherBuffer)) {
+  if (!util.isBuffer(otherBuffer)) {
     throw new TypeError('Bad arguments: buffer.compare(Buffer)');
   }
 
-  return native.compare(this, otherBuffer);
+  return this._builtin.compare(otherBuffer._builtin);
 };
 
 
@@ -173,7 +172,7 @@ Buffer.prototype.compare = function(otherBuffer) {
 // * sourceStart - default to 0
 // * sourceEnd - default to buffer.length
 Buffer.prototype.copy = function(target, targetStart, sourceStart, sourceEnd) {
-  if (!Buffer.isBuffer(target)) {
+  if (!util.isBuffer(target)) {
     throw new TypeError('Bad arguments: buff.copy(Buffer)');
   }
 
@@ -185,7 +184,7 @@ Buffer.prototype.copy = function(target, targetStart, sourceStart, sourceEnd) {
     throw new RangeError('Attempt to write outside buffer bounds');
   }
 
-  return native.copy(this, target, targetStart, sourceStart, sourceEnd);
+  return this._builtin.copy(target, targetStart, sourceStart, sourceEnd);
 };
 
 
@@ -195,8 +194,8 @@ Buffer.prototype.copy = function(target, targetStart, sourceStart, sourceEnd) {
 // [3] buffer.write(string, offset, length)
 // * offset - default to 0
 // * length - default to buffer.length - offset
-Buffer.prototype.write = function(string, offset, length, encoding) {
-  if (typeof string !== 'string') {
+Buffer.prototype.write = function(string, offset, length) {
+  if (!util.isString(string)) {
     throw new TypeError('Bad arguments: buff.write(string)');
   }
 
@@ -208,14 +207,7 @@ Buffer.prototype.write = function(string, offset, length, encoding) {
   var remaining = this.length - offset;
   length = length === undefined ? remaining : ~~length;
 
-  if (typeof encoding === 'string') {
-    encoding = getEncodingType(encoding);
-    if (encoding != -1) {
-      return native.writeDecode(this, encoding, string, offset, length);
-    }
-  }
-
-  return native.write(this, string, offset, length);
+  return this._builtin.write(string, offset, length);
 };
 
 
@@ -229,28 +221,25 @@ Buffer.prototype.slice = function(start, end) {
   start = start === undefined ? 0 : ~~start;
   end = end === undefined ? this.length : ~~end;
 
-  return native.slice(this, start, end);
+  return this._builtin.slice(start, end);
 };
 
 
 // buff.toString([encoding,[,start[, end]]])
 // [1] buff.toString()
-// [2] buff.toString(encoding)
-// [3] buff.toString(encoding, start)
-// [4] buff.toString(encoding, start, end)
+// [2] buff.toString(start)
+// [3] buff.toString(start, end)
+// [4] buff.toString('hex')
 // * start - default to 0
 // * end - default to buff.length
-Buffer.prototype.toString = function(encoding, start, end) {
-  if (typeof encoding === 'string') {
-    encoding = getEncodingType(encoding);
-  } else {
-    encoding = -1;
+Buffer.prototype.toString = function(start, end) {
+  if (util.isString(start) && start === "hex" && end === undefined) {
+      return this._builtin.toHexString();
   }
-
   start = start === undefined ? 0 : ~~start;
   end = end === undefined ? this.length : ~~end;
 
-  return native.toString(this, encoding, start, end);
+  return this._builtin.toString(start, end);
 };
 
 
@@ -262,7 +251,7 @@ Buffer.prototype.writeUInt8 = function(value, offset, noAssert) {
   offset = offset >>> 0;
   if (!noAssert)
     checkInt(this, value, offset, 1, 0xff, 0);
-  native.writeUInt8(this, value & 0xff, offset);
+  this._builtin.writeUInt8(value & 0xff, offset);
   return offset + 1;
 };
 
@@ -275,8 +264,8 @@ Buffer.prototype.writeUInt16LE = function(value, offset, noAssert) {
   offset = offset >>> 0;
   if (!noAssert)
     checkInt(this, value, offset, 2, 0xffff, 0);
-  native.writeUInt8(this, value & 0xff, offset);
-  native.writeUInt8(this, (value >>> 8) & 0xff, offset + 1);
+  this._builtin.writeUInt8(value & 0xff, offset);
+  this._builtin.writeUInt8((value >>> 8) & 0xff, offset + 1);
   return offset + 2;
 };
 
@@ -288,11 +277,11 @@ Buffer.prototype.writeUInt32LE = function(value, offset, noAssert) {
   value = +value;
   offset = offset >>> 0;
   if (!noAssert)
-    checkInt(this, value, offset, 4, -1 >>> 0, 0);
-  native.writeUInt8(this, (value >>> 24) & 0xff, offset + 3);
-  native.writeUInt8(this, (value >>> 16) & 0xff, offset + 2);
-  native.writeUInt8(this, (value >>> 8) & 0xff, offset + 1);
-  native.writeUInt8(this, value & 0xff, offset);
+    checkInt(this, value, offset, 4, 0xffffffff, 0);
+  this._builtin.writeUInt8((value >>> 24) & 0xff, offset + 3);
+  this._builtin.writeUInt8((value >>> 16) & 0xff, offset + 2);
+  this._builtin.writeUInt8((value >>> 8) & 0xff, offset + 1);
+  this._builtin.writeUInt8(value & 0xff, offset);
   return offset + 4;
 };
 
@@ -304,7 +293,7 @@ Buffer.prototype.readUInt8 = function(offset, noAssert) {
   offset = offset >>> 0;
   if (!noAssert)
     checkOffset(offset, 1, this.length);
-  return native.readUInt8(this, offset);
+  return this._builtin.readUInt8(offset);
 };
 
 
@@ -315,7 +304,7 @@ Buffer.prototype.readInt8 = function(offset, noAssert) {
   offset = offset >>> 0;
   if (!noAssert)
     checkOffset(offset, 1, this.length);
-  var val = native.readUInt8(this, offset);
+  var val = this._builtin.readUInt8(offset);
   return !(val & 0x80) ? val : (0xff - val + 1) * -1;
 };
 
@@ -327,50 +316,22 @@ Buffer.prototype.readUInt16LE = function(offset, noAssert) {
   offset = offset >>> 0;
   if (!noAssert)
     checkOffset(offset, 2, this.length);
-  return native.readUInt8(this, offset) |
-         (native.readUInt8(this, offset + 1) << 8);
+  return this._builtin.readUInt8(offset) |
+         (this._builtin.readUInt8(offset + 1) << 8);
 };
 
 
 // buff.fill(value)
 Buffer.prototype.fill = function(value) {
-  if (typeof value === 'number') {
+  if (util.isNumber(value)) {
     value = value & 255;
     for (var i = 0; i < this.length; i++) {
-      native.writeUInt8(this, value, i);
+      this._builtin.writeUInt8(value, i);
     }
   }
   return this;
 };
 
 
-// Method: Buffer.from()
-// Buffer.from(Array)
-// Buffer.from(string,encoding)
-// Buffer.from(Buffer)
-// Buffer.from(ArrayBuffer)
-function from(value, encoding, length) {
-
-  var arrayBuffer = native.fromArrayBuffer(value, encoding, length);
-
-  if (arrayBuffer) {
-    return arrayBuffer;
-  }
-  if (Buffer.isBuffer(value) || (typeof value) === 'string'
-      || Array.isArray(value)) {
-    return new Buffer(value, encoding);
-  }
-  throw new TypeError('First argument must be' +
-  'a string, Buffer, ArrayBuffer, Array, or array-like object');
-}
-
-
-/* Register the Buffer object back to the native C
- * so the other side can get the prototype in a consistent
- * and safe manner.
- */
-native.Buffer = Buffer;
-
 module.exports = Buffer;
 module.exports.Buffer = Buffer;
-module.exports.from = from;

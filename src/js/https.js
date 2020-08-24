@@ -13,41 +13,15 @@
  * limitations under the License.
  */
 
-var tls = require('tls');
-var net = require('net');
-var ClientRequest = require('http_client').ClientRequest;
-var HTTPServer = require('http_server');
-var util = require('util');
+var client = require('https_client');
+
+var ClientRequest = exports.ClientRequest = client.ClientRequest;
 
 exports.request = function(options, cb) {
-  options.port = options.port || 443;
-  // Create socket.
-  var socket = new tls.TLSSocket(new net.Socket(), options);
-
-  return new ClientRequest(options, cb, socket);
+  return new ClientRequest(options, cb);
 };
 
-function Server(options, requestListener) {
-  if (!(this instanceof Server)) {
-    return new Server(options, requestListener);
-  }
-  options.allowHalfOpen = true;
-  tls.Server.call(this, options, HTTPServer.connectionListener);
-
-  HTTPServer.initServer.call(this, options, requestListener);
-}
-util.inherits(Server, tls.Server);
-
-Server.prototype.setTimeout = function(ms, cb) {
-  this.timeout = ms;
-  if (cb) {
-    this.on('timeout', cb);
-  }
-};
-
-exports.createServer = function(options, requestListener) {
-  return new Server(options, requestListener);
-};
+exports.METHODS = client.METHODS;
 
 exports.get = function(options, cb) {
   var req = exports.request(options, cb);

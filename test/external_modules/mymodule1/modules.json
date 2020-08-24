@@ -1,8 +1,0 @@
-{
-  "modules": {
-    "mymodule1": {
-      "js_file": "js/helloworld.js",
-      "require": ["buffer", "console"]
-    }
-  }
-}

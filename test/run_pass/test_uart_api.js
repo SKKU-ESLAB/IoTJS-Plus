@@ -14,10 +14,11 @@
  */
 
 var assert = require('assert');
-var uart = require('uart');
+var Uart = require('uart');
+var uart = new Uart();
 
 // ------ Test API existence
+assert.equal(typeof Uart, 'function',
+             'uart module does not export construction function');
 assert.equal(typeof uart.open, 'function',
              'uart does not provide \'open\' function');
-assert.equal(typeof uart.openSync, 'function',
-             'uart does not provide \'openSync\' function');

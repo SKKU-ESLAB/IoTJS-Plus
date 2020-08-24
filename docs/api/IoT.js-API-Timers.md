@@ -2,12 +2,12 @@
 
 The following shows timer module APIs available for each platform.
 
-|  | Linux<br/>(Ubuntu) | Tizen<br/>(Raspberry Pi) | Raspbian<br/>(Raspberry Pi) | NuttX<br/>(STM32F4-Discovery) | TizenRT<br/>(Artik053) |
-| :---: | :---: | :---: | :---: | :---: | :---: |
-| setTimeout | O | O | O | O | O |
-| clearTimeout | O | O | O | O | O |
-| setInterval | O | O | O | O | O |
-| clearInterval | O | O | O | O | O |
+|  | Linux<br/>(Ubuntu) | Raspbian<br/>(Raspberry Pi) | NuttX<br/>(STM32F4-Discovery) | TizenRT<br/>(Artik053) |
+| :---: | :---: | :---: | :---: | :---: |
+| setTimeout | O | O | O | - |
+| clearTimeout | O | O | O | - |
+| setInterval | O | O | O | - |
+| clearInterval | O | O | O | - |
 
 
 # Timers
@@ -89,4 +89,4 @@ When called, requests that the IoT.js event loop should not exit as long as the 
 
 ### timeout.unref()
 
-When called, the active `Timeout` object will not force the IoT.js event loop to remain active. If there are no other scheduled activities, the process may exit, the process may exit before the `Timeout` object's callback is invoked.
+When called, the active `Timeout` object will not force the IoT.js event loop to remain active. If there are no other scheduled activites, the process may exit, the process may exit before the `Timeout` object's callback is invoked.

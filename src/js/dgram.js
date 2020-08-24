@@ -12,10 +12,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 var EventEmitter = require('events').EventEmitter;
 var util = require('util');
-var Udp = require('udp');
+
+var UDP = process.binding(process.binding.udp);
 
 var BIND_STATE_UNBOUND = 0;
 var BIND_STATE_BINDING = 1;
@@ -39,7 +60,7 @@ function lookup4(address, callback) {
 
 function newHandle(type) {
   if (type == 'udp4') {
-    var handle = new Udp();
+    var handle = new UDP();
     handle.lookup = lookup4;
     return handle;
   }
@@ -102,6 +123,8 @@ Socket.prototype.bind = function(port, address, callback) {
 
   this._bindState = BIND_STATE_BINDING;
 
+  var address;
+
   if (util.isFunction(port)) {
     callback = port;
     port = 0;
@@ -136,7 +159,7 @@ Socket.prototype.bind = function(port, address, callback) {
 
     self._handle._reuseAddr = self._reuseAddr;
 
-    err = self._handle.bind(ip, port | 0);
+    var err = self._handle.bind(ip, port | 0);
     if (err) {
       var ex = util.exceptionWithHostPort(err, 'bind', ip, port);
       self.emit('error', ex);
@@ -149,7 +172,7 @@ Socket.prototype.bind = function(port, address, callback) {
   });
 
   return self;
-};
+}
 
 
 // thin wrapper around `send`, here for compatibility with dgram_legacy.js
@@ -239,11 +262,11 @@ Socket.prototype.send = function(buffer, offset, length, port, address,
 
   if (!util.isArray(buffer)) {
     if (util.isString(buffer)) {
-      list = [new Buffer(buffer)];
+      list = [ new Buffer(buffer) ];
     } else if (!util.isBuffer(buffer)) {
       throw new TypeError('First argument must be a buffer or a string');
     } else {
-      list = [buffer];
+      list = [ buffer ];
     }
   } else if (!(list = fixBufferList(buffer))) {
     throw new TypeError('Buffer list arguments must be buffers or strings');
@@ -295,7 +318,7 @@ function doSend(ex, self, ip, list, address, port, callback) {
 
   var buf = Buffer.concat(list);
 
-  var err = self._handle.send(buf, port, ip, function(err, length) {
+  var err = self._handle.send(buf, port, ip, function (err, length) {
     if (err) {
       err = util.exceptionWithHostPort(err, 'send', address, port);
     } else {
@@ -309,7 +332,7 @@ function doSend(ex, self, ip, list, address, port, callback) {
 
   if (err && callback) {
     // don't emit as error, dgram_legacy.js compatibility
-    ex = util.exceptionWithHostPort(err, 'send', address, port);
+    var ex = exceptionWithHostPort(err, 'send', address, port);
     process.nextTick(callback, ex);
   }
 }
@@ -350,18 +373,8 @@ Socket.prototype.address = function() {
 };
 
 
-// These object represents the different config types that
-// this._handle.configure can do.
-// The order of these must match the order in the udp C module.
-var configTypes = {
-  'BROADCAST': 0,
-  'TTL': 1,
-  'MULTICASTTTL': 2,
-  'MULTICASTLOOPBACK': 3,
-};
-
 Socket.prototype.setBroadcast = function(arg) {
-  var err = this._handle.configure(configTypes.BROADCAST, arg ? 1 : 0);
+  var err = this._handle.setBroadcast(arg ? 1 : 0);
   if (err) {
     throw util.errnoException(err, 'setBroadcast');
   }
@@ -373,7 +386,7 @@ Socket.prototype.setTTL = function(arg) {
     throw new TypeError('Argument must be a number');
   }
 
-  var err = this._handle.configure(configTypes.TTL, arg);
+  var err = this._handle.setTTL(arg);
   if (err) {
     throw util.errnoException(err, 'setTTL');
   }
@@ -387,7 +400,7 @@ Socket.prototype.setMulticastTTL = function(arg) {
     throw new TypeError('Argument must be a number');
   }
 
-  var err = this._handle.configure(configTypes.MULTICASTTTL, arg);
+  var err = this._handle.setMulticastTTL(arg);
   if (err) {
     throw util.errnoException(err, 'setMulticastTTL');
   }
@@ -397,8 +410,7 @@ Socket.prototype.setMulticastTTL = function(arg) {
 
 
 Socket.prototype.setMulticastLoopback = function(arg) {
-  var err = this._handle.configure(configTypes.MULTICASTLOOPBACK,
-                                   arg ? 1 : 0);
+  var err = this._handle.setMulticastLoopback(arg ? 1 : 0);
   if (err) {
     throw util.errnoException(err, 'setMulticastLoopback');
   }
@@ -456,7 +468,7 @@ Socket.prototype._stopReceiving = function() {
 function onMessage(nread, handle, buf, rinfo) {
   var self = handle.owner;
   if (nread < 0) {
-    return self.emit('error', util.errnoException(nread, 'recvmsg'));
+    return self.emit('error', errnoException(nread, 'recvmsg'));
   }
 
   rinfo.size = buf.length; // compatibility

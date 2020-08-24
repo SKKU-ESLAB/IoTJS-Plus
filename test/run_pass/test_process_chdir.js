@@ -22,12 +22,6 @@ try {
   console.log('invalid path');
 }
 
-var newPath = process.cwd();
-if (process.platform === "windows") {
-  /* check if the path is in format: <Drive Letter>:\ */
-  assert.equal(newPath.substr(1), ':\\');
-} else {
-  assert.equal(newPath, '/');
-}
+assert.equal(process.cwd(), '/');
 
 process.chdir(currentPath);

@@ -2,12 +2,12 @@
 
 The following shows process module APIs available for each platform.
 
-|  | Linux<br/>(Ubuntu) | Tizen<br/>(Raspberry Pi) | Raspbian<br/>(Raspberry Pi) | NuttX<br/>(STM32F4-Discovery) | TizenRT<br/>(Artik053) |
-| :---: | :---: | :---: | :---: | :---: | :---: |
-| process.nextTick | O | O | O | O | O |
-| process.exit | O | O | O | O | O |
-| process.cwd | O | O | O | O | O |
-| process.chdir | O | O | O | O | O |
+|  | Linux<br/>(Ubuntu) | Raspbian<br/>(Raspberry Pi) | NuttX<br/>(STM32F4-Discovery) | TizenRT<br/>(Artik053) |
+| :---: | :---: | :---: | :---: | :---: |
+| process.nextTick | O | O | O | - |
+| process.exit | O | O | O | - |
+| process.cwd | O | O | O | - |
+| process.chdir | O | O | O | - |
 
 ※ On NuttX, you should pass absolute path to `process.chdir`.
 
@@ -47,8 +47,6 @@ The `env` property returns an object containing a few environment variables.
 The following environment elements can be accessed:
 * `HOME`
 * `IOTJS_PATH` which is set to `/mnt/sdcard` on NuttX by default.
-* `IOTJS_WORKING_DIR_PATH` is the specified current working directory path to change the root of the module load.
-* `IOTJS_EXTRA_MODULE_PATH` contains the paths to be additionally referenced to load any module.
 * `env` contains `'experimental'` if the IoT.js was build with experimental support.
 
 **Example**
@@ -71,14 +69,13 @@ Specifying an exit code for the `process.exit()` call will override any previous
 
 The `iotjs` property holds IoT.js related information in an object.
 The following keys can be accessed via this property:
-* `board` specifies the device type on which the IoT.js is running currently.
-For instance `'artik05x'`, `'artik10'`, `'rpi2'`,`'stm32f4dis'`, or `'unknown'`.
+* `board` specifies the device type on which the IoT.js is running currently. For instance `'STM32F4DIS'`, `'RP2'`, or `'unknown'`.
 
 **Example**
 
 ```js
 console.log(process.iotjs.board);
-// on Raspberry 2 it prints: rpi2
+// on Raspberry 2 it prints: RP2
 ```
 
 ### process.platform
@@ -126,7 +123,7 @@ IoT.js will not exit till all `'exit'` event listeners are called.
 The `process.exit()` method call will force the process to exit as quickly as possible,
 ignoring if there is any asynchronous operations still pending.
 
-In most situations, it is not necessary to explicitly call `process.exit()`. The IoT.js will exit on its own
+In most situations, it is not necessary to explcitly call `process.exit()`. The IoT.js will exit on its own
 if there is no additional work pending in the event loop. The `process.exitCode` property can be set
 to exit code when the process exits gracefully.
 

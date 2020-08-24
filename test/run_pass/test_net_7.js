@@ -23,8 +23,7 @@ var port = 22707;
 var count = 40;
 var connectionCount = 0;
 
-if (process.platform === 'linux' || process.platform === 'darwin' ||
-    process.platform === 'tizen' || process.platform === 'windows') {
+if (process.platform === 'linux' || process.platform === 'darwin') {
   var maxConnection = 40;
 } else if (process.platform === 'nuttx' || process.platform === 'tizenrt') {
   var maxConnection = 5;

@@ -38,9 +38,11 @@
 #define IOTJS_MODULE_BLE_HCI_SOCKET_H
 
 #include "iotjs_def.h"
+#include "iotjs_objectwrap.h"
+#include "iotjs_reqwrap.h"
 
 typedef struct {
-  jerry_value_t jobject;
+  iotjs_jobjectwrap_t jobjectwrap;
 
   int _mode;
   int _socket;
@@ -50,33 +52,34 @@ typedef struct {
   int _l2socketCount;
   uint8_t _address[6];
   uint8_t _addressType;
-} iotjs_blehcisocket_t;
+} IOTJS_VALIDATED_STRUCT(iotjs_blehcisocket_t);
 
 
-iotjs_blehcisocket_t* iotjs_blehcisocket_create(jerry_value_t jble);
+#define THIS iotjs_blehcisocket_t* iotjs_blehcisocket
 
 
-void iotjs_blehcisocket_initialize(iotjs_blehcisocket_t* iotjs_blehcisocket);
-void iotjs_blehcisocket_close(iotjs_blehcisocket_t* iotjs_blehcisocket);
-void iotjs_blehcisocket_start(iotjs_blehcisocket_t* iotjs_blehcisocket);
-int iotjs_blehcisocket_bindRaw(iotjs_blehcisocket_t* iotjs_blehcisocket,
-                               int* devId);
-int iotjs_blehcisocket_bindUser(iotjs_blehcisocket_t* iotjs_blehcisocket,
-                                int* devId);
-void iotjs_blehcisocket_bindControl(iotjs_blehcisocket_t* iotjs_blehcisocket);
-bool iotjs_blehcisocket_isDevUp(iotjs_blehcisocket_t* iotjs_blehcisocket);
-void iotjs_blehcisocket_setFilter(iotjs_blehcisocket_t* iotjs_blehcisocket,
-                                  char* data, size_t length);
-void iotjs_blehcisocket_poll(iotjs_blehcisocket_t* iotjs_blehcisocket);
-void iotjs_blehcisocket_stop(iotjs_blehcisocket_t* iotjs_blehcisocket);
-void iotjs_blehcisocket_write(iotjs_blehcisocket_t* iotjs_blehcisocket,
-                              char* data, size_t length);
-void iotjs_blehcisocket_emitErrnoError(
-    iotjs_blehcisocket_t* iotjs_blehcisocket);
-int iotjs_blehcisocket_devIdFor(iotjs_blehcisocket_t* iotjs_blehcisocket,
-                                int* pDevId, bool isUp);
-int iotjs_blehcisocket_kernelDisconnectWorkArounds(
-    iotjs_blehcisocket_t* iotjs_blehcisocket, int length, char* data);
+iotjs_blehcisocket_t* iotjs_blehcisocket_create(const iotjs_jval_t* jble);
+iotjs_blehcisocket_t* iotjs_blehcisocket_instance_from_jval(
+    const iotjs_jval_t* jble);
+
+
+void iotjs_blehcisocket_initialize(THIS);
+void iotjs_blehcisocket_close(THIS);
+void iotjs_blehcisocket_start(THIS);
+int iotjs_blehcisocket_bindRaw(THIS, int* devId);
+int iotjs_blehcisocket_bindUser(THIS, int* devId);
+void iotjs_blehcisocket_bindControl(THIS);
+bool iotjs_blehcisocket_isDevUp(THIS);
+void iotjs_blehcisocket_setFilter(THIS, char* data, size_t length);
+void iotjs_blehcisocket_poll(THIS);
+void iotjs_blehcisocket_stop(THIS);
+void iotjs_blehcisocket_write(THIS, char* data, size_t length);
+void iotjs_blehcisocket_emitErrnoError(THIS);
+int iotjs_blehcisocket_devIdFor(THIS, int* pDevId, bool isUp);
+int iotjs_blehcisocket_kernelDisconnectWorkArounds(THIS, int length,
+                                                   char* data);
+
+#undef THIS
 
 void iotjs_blehcisocket_poll_cb(uv_poll_t* handle, int status, int events);
 

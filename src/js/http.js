@@ -13,47 +13,21 @@
  * limitations under the License.
  */
 
-var net = require('net');
-var ClientRequest = require('http_client').ClientRequest;
-var IncomingMessage = require('http_incoming').IncomingMessage;
-var HTTPParser = require('http_parser').HTTPParser;
-var HTTPServer = require('http_server');
-var util = require('util');
+var Server = require('http_server').Server;
+var client = require('http_client');
+var HTTPParser = process.binding(process.binding.httpparser).HTTPParser;
 
-exports.ClientRequest = ClientRequest;
+
+var ClientRequest = exports.ClientRequest = client.ClientRequest;
 
 
 exports.request = function(options, cb) {
-  // Create socket.
-  var socket = new net.Socket();
-  options.port = options.port || 80;
-
-  return new ClientRequest(options, cb, socket);
+  return new ClientRequest(options, cb);
 };
 
-function Server(options, requestListener) {
-  if (!(this instanceof Server)) {
-    return new Server(options, requestListener);
-  }
 
-  net.Server.call(this, {allowHalfOpen: true},
-                  HTTPServer.connectionListener);
-
-  HTTPServer.initServer.call(this, options, requestListener);
-}
-util.inherits(Server, net.Server);
-
-Server.prototype.setTimeout = function(ms, cb) {
-  this.timeout = ms;
-  if (cb) {
-    this.on('timeout', cb);
-  }
-};
-
-exports.Server = Server;
-
-exports.createServer = function(options, requestListener) {
-  return new Server(options, requestListener);
+exports.createServer = function(requestListener){
+  return new Server(requestListener);
 };
 
 
@@ -65,6 +39,3 @@ exports.get = function(options, cb) {
   req.end();
   return req;
 };
-
-exports.IncomingMessage = IncomingMessage;
-exports.ServerResponse = HTTPServer.ServerResponse;

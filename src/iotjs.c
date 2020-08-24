@@ -16,26 +16,25 @@
 #include "iotjs_def.h"
 
 #include "iotjs.h"
+#include "iotjs_handlewrap.h"
 #include "iotjs_js.h"
 #include "iotjs_string_ext.h"
-#include "jerryscript-ext/debugger.h"
-#if ENABLE_MODULE_NAPI
-#include "internal/node_api_internal.h"
-#endif
-#if !defined(__NUTTX__) && !defined(__TIZENRT__)
+
+#include "jerryscript-debugger.h"
+#ifndef __NUTTX__
 #include "jerryscript-port-default.h"
 #endif
 #include "jerryscript-port.h"
 #include "jerryscript.h"
 
-#include "iotjs_uv_handle.h"
-
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 
-static bool jerry_initialize(iotjs_environment_t* env) {
+/**
+ * Initialize JerryScript.
+ */
+static bool iotjs_jerry_initialize(iotjs_environment_t* env) {
   // Set jerry run flags.
   jerry_init_flag_t jerry_flags = JERRY_INIT_EMPTY;
 
@@ -52,59 +51,38 @@ static bool jerry_initialize(iotjs_environment_t* env) {
     jerry_port_default_set_log_level(JERRY_LOG_LEVEL_DEBUG);
 #endif
   }
+
+  if (iotjs_environment_config(env)->is_jerry_jmem_logs_enabled) {
+    jerry_flags |= JERRY_INIT_JMEM_LOGS_ENABLED;
+  }
   // Initialize jerry.
   jerry_init(jerry_flags);
 
-#ifdef JERRY_DEBUGGER
-  if (iotjs_environment_config(env)->debugger != NULL) {
-    bool protocol_created = false;
-    char* debug_protocol = iotjs_environment_config(env)->debugger->protocol;
-    char* debug_channel = iotjs_environment_config(env)->debugger->channel;
+  if (iotjs_environment_config(env)->debugger) {
+    jerry_debugger_init(iotjs_environment_config(env)->debugger_port);
+  }
 
-    if (!strcmp(debug_protocol, "tcp")) {
-      uint16_t port = iotjs_environment_config(env)->debugger->port;
-      protocol_created = jerryx_debugger_tcp_create(port);
-    } else {
-      IOTJS_ASSERT(!strcmp(debug_protocol, "serial"));
-      char* config = iotjs_environment_config(env)->debugger->serial_config;
-      protocol_created = jerryx_debugger_serial_create(config);
-    }
-
-    if (!strcmp(debug_channel, "rawpacket")) {
-      jerryx_debugger_after_connect(protocol_created &&
-                                    jerryx_debugger_rp_create());
-    } else {
-      IOTJS_ASSERT(!strcmp(debug_channel, "websocket"));
-      jerryx_debugger_after_connect(protocol_created &&
-                                    jerryx_debugger_ws_create());
-    }
-
-    if (!jerry_debugger_is_connected()) {
-      DLOG("jerry debugger connection failed");
-      return false;
-    }
-
+  if (iotjs_environment_config(env)->debugger) {
     jerry_debugger_continue();
   }
-#endif
 
   // Set magic strings.
   iotjs_register_jerry_magic_string();
 
   // Register VM execution stop callback.
-  jerry_set_vm_exec_stop_callback(vm_exec_stop_callback, &env->state, 2);
+  IOTJS_VALIDATED_STRUCT_METHOD(iotjs_environment_t, env);
+  jerry_set_vm_exec_stop_callback(vm_exec_stop_callback, &(_this->state), 2);
 
   // Do parse and run to generate initial javascript environment.
-  jerry_value_t parsed_code =
-      jerry_parse(NULL, 0, (jerry_char_t*)"", 0, JERRY_PARSE_NO_OPTS);
-  if (jerry_value_is_error(parsed_code)) {
+  jerry_value_t parsed_code = jerry_parse((jerry_char_t*)"", 0, false);
+  if (jerry_value_has_error_flag(parsed_code)) {
     DLOG("jerry_parse() failed");
     jerry_release_value(parsed_code);
     return false;
   }
 
   jerry_value_t ret_val = jerry_run(parsed_code);
-  if (jerry_value_is_error(ret_val)) {
+  if (jerry_value_has_error_flag(ret_val)) {
     DLOG("jerry_run() failed");
     jerry_release_value(parsed_code);
     jerry_release_value(ret_val);
@@ -117,131 +95,67 @@ static bool jerry_initialize(iotjs_environment_t* env) {
 }
 
 
-bool iotjs_initialize(iotjs_environment_t* env) {
-  // Initialize JerryScript
-  if (!jerry_initialize(env)) {
-    DLOG("iotjs_jerry_init failed");
-    return false;
-  }
-
-  // Set event loop.
-  if (!uv_default_loop()) {
-    DLOG("iotjs uvloop init failed");
-    return false;
-  }
-  iotjs_environment_set_loop(env, uv_default_loop());
-
-  // Bind environment to global object.
-  const jerry_value_t global = jerry_get_global_object();
-  jerry_set_object_native_pointer(global, env, NULL);
-
-  // Initialize builtin process module.
-  const jerry_value_t process = iotjs_module_get("process");
-  iotjs_jval_set_property_jval(global, "process", process);
-
-  // Release the global object
-  jerry_release_value(global);
-
-  return true;
+static void iotjs_jerry_release(iotjs_environment_t* env) {
+  jerry_cleanup();
 }
 
 
-#ifdef JERRY_DEBUGGER
-void iotjs_restart(iotjs_environment_t* env, jerry_value_t jmain) {
-  jerry_value_t abort_value = jerry_get_value_from_error(jmain, false);
-  if (jerry_value_is_string(abort_value)) {
-    /* TODO: When there is an api function to check for reset,
-    this needs an update. */
-    static const char restart_str[] = "r353t";
-
-    jerry_size_t str_size = jerry_get_string_size(abort_value);
-
-    if (str_size == sizeof(restart_str) - 1) {
-      jerry_char_t str_buf[5];
-      jerry_string_to_char_buffer(abort_value, str_buf, str_size);
-      if (memcmp(restart_str, (char*)(str_buf), str_size) == 0) {
-        iotjs_environment_config(env)->debugger->context_reset = true;
-      }
-    }
-  }
-  jerry_release_value(abort_value);
-}
-#endif
-
-
-void iotjs_run(iotjs_environment_t* env) {
-// Evaluating 'iotjs.js' returns a function.
+static bool iotjs_run(iotjs_environment_t* env) {
+  // Evaluating 'iotjs.js' returns a function.
+  bool throws = false;
 #ifndef ENABLE_SNAPSHOT
-  jerry_value_t jmain = iotjs_jhelper_eval("iotjs.js", strlen("iotjs.js"),
-                                           iotjs_s, iotjs_l, false);
+  iotjs_jval_t jmain = iotjs_jhelper_eval("iotjs.js", strlen("iotjs.js"),
+                                          iotjs_s, iotjs_l, false, &throws);
 #else
-  jerry_value_t jmain =
-      jerry_exec_snapshot((const uint32_t*)iotjs_js_modules_s,
-                          iotjs_js_modules_l, module_iotjs_idx,
-                          JERRY_SNAPSHOT_EXEC_ALLOW_STATIC);
+  iotjs_jval_t jmain = iotjs_jhelper_exec_snapshot(iotjs_s, iotjs_l, &throws);
 #endif
 
-  if (jerry_value_is_error(jmain)) {
-    jerry_value_t errval = jerry_get_value_from_error(jmain, false);
-#ifdef JERRY_DEBUGGER
-    if (jerry_value_is_abort(jmain) && jerry_value_is_string(errval)) {
-      static const char restart_str[] = "r353t";
-      jerry_size_t str_size = jerry_get_string_size(errval);
-
-      if (str_size == sizeof(restart_str) - 1) {
-        jerry_char_t str_buf[5];
-        jerry_string_to_char_buffer(errval, str_buf, str_size);
-        if (memcmp(restart_str, (char*)(str_buf), str_size) == 0) {
-          iotjs_environment_config(env)->debugger->context_reset = true;
-        }
-      }
-    }
-#endif
-
-    bool throw_exception = !iotjs_environment_is_exiting(env);
-#ifdef JERRY_DEBUGGER
-    throw_exception = throw_exception &&
-                      iotjs_environment_config(env)->debugger &&
-                      !iotjs_environment_config(env)->debugger->context_reset;
-#endif
-    if (throw_exception) {
-      iotjs_uncaught_exception(errval);
-    }
-
-    jerry_release_value(errval);
+  if (throws) {
+    iotjs_uncaught_exception(&jmain);
   }
 
-  jerry_release_value(jmain);
+  iotjs_jval_destroy(&jmain);
+
+  return !throws;
 }
 
 
 static int iotjs_start(iotjs_environment_t* env) {
-  iotjs_environment_set_state(env, kRunningMain);
-#if ENABLE_MODULE_NAPI
-  iotjs_setup_napi();
-#endif
+  // Initialize commonly used jerry values.
+  iotjs_binding_initialize();
+
+  // Bind environment to global object.
+  const iotjs_jval_t* global = iotjs_jval_get_global_object();
+  iotjs_jval_set_object_native_handle(global, (uintptr_t)(env), NULL);
+
+  // Initialize builtin modules.
+  iotjs_module_list_init();
+
+  // Initialize builtin process module.
+  const iotjs_jval_t* process = iotjs_init_process_module();
+  iotjs_jval_set_property_jval(global, "process", process);
+
+  // Set running state.
+  iotjs_environment_go_state_running_main(env);
+
   // Load and call iotjs.js.
   iotjs_run(env);
 
   int exit_code = 0;
   if (!iotjs_environment_is_exiting(env)) {
     // Run event loop.
-    iotjs_environment_set_state(env, kRunningLoop);
+    iotjs_environment_go_state_running_loop(env);
 
     bool more;
     do {
       more = uv_run(iotjs_environment_loop(env), UV_RUN_ONCE);
       more |= iotjs_process_next_tick();
-
-      jerry_value_t ret_val = jerry_run_all_enqueued_jobs();
-      if (jerry_value_is_error(ret_val)) {
-        ret_val = jerry_get_value_from_error(ret_val, true);
-        iotjs_uncaught_exception(ret_val);
-        jerry_release_value(ret_val);
-      }
-
       if (more == false) {
         more = uv_loop_alive(iotjs_environment_loop(env));
+      }
+      jerry_value_t ret_val = jerry_run_all_enqueued_jobs();
+      if (jerry_value_has_error_flag(ret_val)) {
+        DLOG("jerry_run_all_enqueued_jobs() failed");
       }
     } while (more && !iotjs_environment_is_exiting(env));
 
@@ -251,84 +165,79 @@ static int iotjs_start(iotjs_environment_t* env) {
       // Emit 'exit' event.
       iotjs_process_emit_exit(exit_code);
 
-      iotjs_environment_set_state(env, kExiting);
+      iotjs_environment_go_state_exiting(env);
     }
   }
 
   exit_code = iotjs_process_exitcode();
 
+  // Release builtin modules.
+  iotjs_module_list_cleanup();
+
   return exit_code;
 }
 
 
-void iotjs_end(iotjs_environment_t* env) {
-  uv_loop_t* loop = iotjs_environment_loop(env);
-  // Close uv loop.
-  uv_walk(loop, (uv_walk_cb)iotjs_uv_handle_close, NULL);
-  uv_run(loop, UV_RUN_DEFAULT);
+static void iotjs_uv_walk_to_close_callback(uv_handle_t* handle, void* arg) {
+  iotjs_handlewrap_t* handle_wrap = iotjs_handlewrap_from_handle(handle);
+  IOTJS_ASSERT(handle_wrap != NULL);
 
-  int res = uv_loop_close(loop);
-  IOTJS_ASSERT(res == 0);
+  iotjs_handlewrap_close(handle_wrap, NULL);
 }
 
-
-void iotjs_terminate(iotjs_environment_t* env) {
-  // Release builtin modules.
-  iotjs_module_list_cleanup();
-#if ENABLE_MODULE_NAPI
-  iotjs_cleanup_napi();
-#endif
-  // Release JerryScript engine.
-  jerry_cleanup();
-}
-
-
-void iotjs_conf_console_out(int (*out)(int lv, const char* fmt, ...)) {
-  iotjs_set_console_out(out);
-}
 
 int iotjs_entry(int argc, char** argv) {
+  // Initialize debug print.
+  init_debug_settings();
+
+  // Create environment.
+  iotjs_environment_t* env = (iotjs_environment_t*)iotjs_environment_get();
+
   int ret_code = 0;
 
-  // Initialize debug log and environments
-  iotjs_debuglog_init();
-  srand((unsigned)jerry_port_get_current_time());
-
-  iotjs_environment_t* env = iotjs_environment_get();
+  // Parse command line arguments.
   if (!iotjs_environment_parse_command_line_arguments(env, (uint32_t)argc,
                                                       argv)) {
-    ret_code = 1;
-    goto exit;
-  }
-
-  // Initialize IoT.js
-  if (!iotjs_initialize(env)) {
-    DLOG("iotjs_initialize failed");
+    DLOG("iotjs_environment_parse_command_line_arguments failed");
     ret_code = 1;
     goto terminate;
   }
 
-  // Start IoT.js
+  // Initialize JerryScript engine.
+  if (!iotjs_jerry_initialize(env)) {
+    DLOG("iotjs_jerry_initialize failed");
+    ret_code = 1;
+    goto terminate;
+  }
+
+  // Set event loop.
+  iotjs_environment_set_loop(env, uv_default_loop());
+
+  // jmem-profiler
+  jerry_set_heap_size_ptr(uv_get_heap_size_ptr());
+
+  // Start iot.js.
   ret_code = iotjs_start(env);
 
-  // Ends IoT.js
-  iotjs_end(env);
+  // Close uv loop.
+  uv_walk(iotjs_environment_loop(env), iotjs_uv_walk_to_close_callback, NULL);
+  uv_run(iotjs_environment_loop(env), UV_RUN_DEFAULT);
+
+  int res = uv_loop_close(iotjs_environment_loop(env));
+  IOTJS_ASSERT(res == 0);
+
+  // Release commonly used jerry values.
+  iotjs_binding_finalize();
+
+  // Release JerryScript engine.
+  iotjs_jerry_release(env);
 
 terminate:
-  iotjs_terminate(env);
-
-exit:
-#ifdef JERRY_DEBUGGER
-  if (iotjs_environment_config(env)->debugger &&
-      iotjs_environment_config(env)->debugger->context_reset) {
-    iotjs_environment_release();
-    iotjs_debuglog_release();
-
-    return iotjs_entry(argc, argv);
-  }
-#endif
-
+  // Release environment.
   iotjs_environment_release();
-  iotjs_debuglog_release();
+
+  // Release debug print setting.
+  release_debug_settings();
+
   return ret_code;
 }

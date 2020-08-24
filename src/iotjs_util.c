@@ -21,11 +21,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__linux__) && !defined(__OPENWRT__)
+#if defined(__linux__)
 #include <execinfo.h>
 #endif
-
-void force_terminate(void);
 
 iotjs_string_t iotjs_file_read(const char* path) {
   FILE* file = fopen(path, "rb");
@@ -34,20 +32,11 @@ iotjs_string_t iotjs_file_read(const char* path) {
     return empty_content;
   }
 
-  int fseek_ret = fseek(file, 0, SEEK_END);
-  IOTJS_ASSERT(fseek_ret == 0);
+  fseek(file, 0, SEEK_END);
   long ftell_ret = ftell(file);
   IOTJS_ASSERT(ftell_ret >= 0);
   size_t len = (size_t)ftell_ret;
-  fseek_ret = fseek(file, 0, SEEK_SET);
-  IOTJS_ASSERT(fseek_ret == 0);
-
-  if (ftell_ret < 0 || fseek_ret != 0) {
-    iotjs_string_t empty_content = iotjs_string_create();
-    fclose(file);
-    DLOG("iotjs_file_read error");
-    return empty_content;
-  }
+  fseek(file, 0, SEEK_SET);
 
   char* buffer = iotjs_buffer_allocate(len + 1);
 
@@ -77,46 +66,24 @@ iotjs_string_t iotjs_file_read(const char* path) {
 
 char* iotjs_buffer_allocate(size_t size) {
   char* buffer = (char*)(calloc(size, sizeof(char)));
-  if (buffer == NULL) {
-    DLOG("Out of memory");
-    force_terminate();
-  }
-  return buffer;
-}
-
-
-char* iotjs_buffer_allocate_from_number_array(size_t size,
-                                              const jerry_value_t array) {
-  char* buffer = iotjs_buffer_allocate(size);
-  for (size_t i = 0; i < size; i++) {
-    jerry_value_t jdata = iotjs_jval_get_property_by_index(array, i);
-    buffer[i] = iotjs_jval_as_number(jdata);
-    jerry_release_value(jdata);
-  }
+  IOTJS_ASSERT(buffer != NULL);
   return buffer;
 }
 
 
 char* iotjs_buffer_reallocate(char* buffer, size_t size) {
   IOTJS_ASSERT(buffer != NULL);
-  char* newbuffer = (char*)(realloc(buffer, size));
-  if (newbuffer == NULL) {
-    DLOG("Out of memmory");
-    force_terminate();
-  }
-  return newbuffer;
+  return (char*)(realloc(buffer, size));
 }
 
 
 void iotjs_buffer_release(char* buffer) {
-  if (buffer) {
-    free(buffer);
-  }
+  IOTJS_ASSERT(buffer != NULL);
+  free(buffer);
 }
 
-void print_stacktrace(void) {
-#if !defined(NDEBUG) && defined(__linux__) && defined(DEBUG) && \
-    !defined(__OPENWRT__)
+void print_stacktrace() {
+#if defined(__linux__) && defined(DEBUG)
   // TODO: support other platforms
   const int numOfStackTrace = 100;
   void* buffer[numOfStackTrace];
@@ -148,10 +115,9 @@ void print_stacktrace(void) {
   }
 
   free(strings);
-#endif // !defined(NDEBUG) && defined(__linux__) && defined(DEBUG) &&
-       // !defined(__OPENWRT__)
+#endif // defined(__linux__) && defined(DEBUG)
 }
 
-void force_terminate(void) {
+void force_terminate() {
   exit(EXIT_FAILURE);
 }

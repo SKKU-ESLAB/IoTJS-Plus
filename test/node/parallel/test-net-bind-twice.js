@@ -46,13 +46,9 @@ server1.listen(0, '127.0.0.1', common.mustCall(function() {
   var server2 = net.createServer(common.fail);
 
   server2.on('error', common.mustCall(function(e) {
-    // EADDRINUSE has different values on OSX and NuttX.
+    // EADDRINUSE have different value on OSX.
     if (common.isOSX) {
       assert.strictEqual(e, -48);
-    } else if (common.isNuttX) {
-      assert.strictEqual(e, -112);
-    } else if (common.isWindows) {
-      assert.strictEqual(e, -4091);
     } else {
       assert.strictEqual(e, -98);
     }

@@ -36,7 +36,9 @@
 
 var events = require('events');
 
-inherits(native /* BluetoothHciSocket */, events.EventEmitter);
+var BluetoothHciSocket= process.binding(process.binding.blehcisocket);
+
+inherits(BluetoothHciSocket, events.EventEmitter);
 
 // extend prototype
 function inherits(target, source) {
@@ -45,4 +47,4 @@ function inherits(target, source) {
   }
 }
 
-module.exports = native; /* BluetoothHciSocket */
+module.exports = BluetoothHciSocket;

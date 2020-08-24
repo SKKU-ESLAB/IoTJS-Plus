@@ -58,14 +58,7 @@ dns.lookup('invalid', 4, function(err, ip, family) {
 
 // Test with empty hostname.
 dns.lookup('', 4, function(err, ip, family) {
-  if (process.platform === "windows") {
-    /* On windows the empty dns name can be resolved. */
-    assert.equal(err, null);
-    assert.notEqual(ip, null);
-    assert.notEqual(family, null);
-  } else {
-    assert.notEqual(err, null);
-  }
+  assert.notEqual(err, null);
 });
 
 // Test with non string hostname.

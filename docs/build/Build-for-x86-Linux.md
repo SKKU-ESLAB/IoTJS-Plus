@@ -7,7 +7,7 @@
 ***
 
 #### Build Host
-Ubuntu 14.04 is recommended. Other Unix like platforms can be used. If it doesn't seem to work properly on other platforms, please look into the [Issues](https://github.com/jerryscript-project/iotjs/issues) page. Someone may have already tried. If you can't find any related one, please leave an issue for help.
+Ubuntu 14.04 is recommended. Other Unix like platforms can be used. If it doesn't seem to work properly on other platforms, please look into the [Issues](https://github.com/Samsung/iotjs/issues) page. Someone may have already tried. If you can't find any related one, please leave an issue for help.
 
 #### Directory structure
 
@@ -41,7 +41,7 @@ Clone our repository to look around and test it. If it attracts you and you want
 To get the source for this repository,
 ```
 cd harmony
-git clone https://github.com/jerryscript-project/iotjs.git
+git clone https://github.com/Samsung/iotjs.git
 cd iotjs
 ```
 
@@ -67,7 +67,6 @@ buildtype=debug|release (debug is default)
 builddir=build (build is default)
 clean
 buildlib (default is False)
-profile=path-to-profile (default: profiles/default.profile)
 target-arch=x86|x86_64|x64|i686|arm (depends on your host platform)
 target-os=linux|nuttx|darwin|osx (linux is default)
 target-board
@@ -75,7 +74,10 @@ cmake-param
 compile-flag
 link_flag
 external-include-dir
-external-lib
+external-static-lib
+external-shared-lib
+iotjs-include-module
+iotjs-exclude-module
 jerry-cmake-param
 jerry-compile-flag
 jerry-link-flag
@@ -85,10 +87,10 @@ jerry-heaplimit (default is 81, may change)
 jerry-memstat (default is False)
 no-init-submodule (default is init)
 no-check-tidy (default is check)
+no-check-test (default is check)
 no-parallel-build
 no-snapshot
 nuttx-home= (no default value)
-run-test (default is False)
 ```
 
 To give options, please use two dashes '--' before the option name as described in the following sections.
@@ -99,8 +101,8 @@ Options that may need explanations.
 * jerry-heaplimit: JerryScript default heap size (as of today) is 256Kbytes. This option is to change the size for embedded systems, NuttX for now, and current default is 81KB. For linux, this has no effect. While building nuttx if you see an error `region sram overflowed by xxxx bytes`, you may have to decrease about that amount.
 * jerry-memstat: turn on the flag so that jerry dumps byte codes and literals and memory usage while parsing and execution.
 * no-check-tidy: no checks codes are tidy. we recommend to check tidy.
+* no-check-test: do not run all tests in test folder after build.
 * nuttx-home: it's NuttX platform specific, to tell where the NuttX configuration and header files are.
-* run-test: run all tests in test folder after build.
 
 If you want to know more details about options, please check the [Build Script](Build-Script.md) page.
 
@@ -108,24 +110,13 @@ If you want to know more details about options, please check the [Build Script](
 #### Include extended module
 There are two ways to include [extended module](../api/IoT.js-API-reference.md).
 
-The first way is to specify the `ENABLE_MODULE_[NAME]=ON` CMake parameter, where `[NAME]` is the uppercase name of the module.
+The first way is to modify a property value of module in `build.config` file. You can move a module name from 'exclude' to 'include'.
+
+The second way is by using build options which is `--iotjs-include-module`.
+If you enter several modules, separate them with a comma.
 
 ```
-./tools/build.py --cmake-param=-DENABLE_MODULE_DGRAM=ON
-```
-
-The second way is by using profile descriptors, where a profile file contains the list of enabled modules. E.g.:
-
-**my-profile**
-```
-ENABLE_MODULE_IOTJS_CORE_MODULES
-ENABLE_MODULE_IOTJS_BASIC_MODULES
-ENABLE_MODULE_DGRAM
-```
-
-
-```
-./tools/build.py --profile=./my-profile
+./tools/build.py --iotjs-include-module=dgram,pin,gpio
 ```
 
 
@@ -196,7 +187,7 @@ To print memory statistics, follow the below steps;
 ```
 ./tools/build.py --jerry-memstat
 
-./build/x86_64-linux/debug/bin/iotjs --mem-stats ./test/run_pass/test_console.js
+./build/x86_64-linux/debug/bin/iotjs --memstat ./test/run_pass/test_console.js
 ```
 
 With given `show-opcodes` option, opcodes will be shown.

@@ -13,36 +13,26 @@
  * limitations under the License.
  */
 
+var Timer = process.binding(process.binding.timer);
+
 var util = require('util');
 
-var TIMEOUT_MAX = '2147483647.0' - 0; // 2^31-1
-
-var TIMER_TYPES = {
-  setTimeout: 0,
-  setInterval: 1,
-  setImmediate: 2,
-};
+var TIMEOUT_MAX = 2147483647; // 2^31-1
 
 
 function Timeout(after) {
   this.after = after;
-  this.isRepeat = false;
+  this.isrepeat = false;
   this.callback = null;
   this.handler = null;
 }
 
 
-native.prototype.handleTimeout = function() {
-  var timeout = this.timeoutObj; // 'this' is native object
+Timer.prototype.handleTimeout = function() {
+  var timeout = this.timeoutObj; // 'this' is Timer object
   if (timeout && timeout.callback) {
-    try {
-      timeout.callback();
-    } catch (e) {
-      timeout.unref();
-      throw e;
-    }
-
-    if (!timeout.isRepeat) {
+    timeout.callback();
+    if (!timeout.isrepeat) {
       timeout.unref();
     }
   }
@@ -51,9 +41,9 @@ native.prototype.handleTimeout = function() {
 
 Timeout.prototype.ref = function() {
   var repeat = 0;
-  var handler = new native();
+  var handler = new Timer();
 
-  if (this.isRepeat) {
+  if (this.isrepeat) {
     repeat = this.after;
 
   }
@@ -74,19 +64,14 @@ Timeout.prototype.unref = function() {
   }
 };
 
-
-function timeoutConfigurator(type, callback, delay) {
+function timeoutConfigurator(isrepeat, callback, delay) {
   if (!util.isFunction(callback)) {
     throw new TypeError('Bad arguments: callback must be a Function');
   }
 
-  if (type === TIMER_TYPES.setImmediate) {
-    delay = 0;
-  } else {
-    delay *= 1;
-    if (delay < 1 || delay > TIMEOUT_MAX) {
-      delay = 1;
-    }
+  delay *= 1;
+  if (delay < 1 || delay > TIMEOUT_MAX) {
+    delay = 1;
   }
 
   var timeout = new Timeout(delay);
@@ -99,18 +84,14 @@ function timeoutConfigurator(type, callback, delay) {
     args.splice(0, 0, timeout);
     timeout.callback = callback.bind.apply(callback, args);
   }
-  timeout.isRepeat = type == TIMER_TYPES.setInterval;
+  timeout.isrepeat = isrepeat;
   timeout.ref();
 
   return timeout;
 }
 
-exports.setTimeout = timeoutConfigurator.bind(undefined,
-                                              TIMER_TYPES.setTimeout);
-exports.setInterval = timeoutConfigurator.bind(undefined,
-                                               TIMER_TYPES.setInterval);
-exports.setImmediate = timeoutConfigurator.bind(undefined,
-                                                TIMER_TYPES.setImmediate);
+exports.setTimeout = timeoutConfigurator.bind(undefined, false);
+exports.setInterval = timeoutConfigurator.bind(undefined, true);
 
 function clearTimeoutBase(timeoutType, timeout) {
   if (timeout) {

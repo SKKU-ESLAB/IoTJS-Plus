@@ -18,18 +18,13 @@ var EventEmitter = require('events').EventEmitter;
 var stream = require('stream');
 var util = require('util');
 var assert = require('assert');
-var Tcp = require('tcp');
+
+var TCP = process.binding(process.binding.tcp);
+
 
 function createTCP() {
-  var _tcp = new Tcp();
-  return _tcp;
-}
-
-// Expected end message on nuttx platform.
-var expectedEnding;
-
-if (process.platform == 'nuttx') {
-   expectedEnding = new Buffer('\\e\\n\\d');
+  var tcp = new TCP();
+  return tcp;
 }
 
 
@@ -110,7 +105,7 @@ Socket.prototype.connect = function() {
   var port = options.port;
   var dnsopts = {
     family: options.family >>> 0,
-    hints: 0,
+    hints: 0
   };
 
   if (!util.isNumber(port) || port < 0 || port > 65535)
@@ -230,7 +225,7 @@ Socket.prototype.destroySoon = function() {
   } else {
     self.once('finish', self.destroy);
   }
-};
+}
 
 
 Socket.prototype.setKeepAlive = function(enable, delay) {
@@ -249,7 +244,7 @@ Socket.prototype.address = function() {
   if (!this._sockname) {
     var out = {};
     var err = this._handle.getsockname(out);
-    if (err) return {}; // FIXME(bnoordhuis) Throw?
+    if (err) return {};  // FIXME(bnoordhuis) Throw?
     this._sockname = out;
   }
   return this._sockname;
@@ -293,14 +288,14 @@ function connect(socket, ip, port) {
     } else {
       socket.destroy();
       emitError(socket, new Error('connect failed - status: ' +
-        Tcp.errname(status)));
+        TCP.errname(status)));
     }
   };
 
   var err = socket._handle.connect(ip, port, afterConnect);
   if (err) {
     emitError(socket, new Error('connect failed - status: ' +
-      Tcp.errname(err)));
+      TCP.errname(err)));
   }
 }
 
@@ -335,7 +330,7 @@ function resetSocketTimeout(socket) {
       clearSocketTimeout(socket);
     }, socket._timeout);
   }
-}
+};
 
 
 function clearSocketTimeout(socket) {
@@ -343,7 +338,7 @@ function clearSocketTimeout(socket) {
     clearTimeout(socket._timer);
     socket._timer = null;
   }
-}
+};
 
 
 function emitError(socket, err) {
@@ -405,25 +400,20 @@ function onread(socket, nread, isEOF, buffer) {
     var err = new Error('read error: ' + nread);
     stream.Readable.prototype.error.call(socket, err);
   } else if (nread > 0) {
-    if (process.platform !== 'nuttx') {
+    if (process.platform  !== 'nuttx') {
       stream.Readable.prototype.push.call(socket, buffer);
       return;
     }
 
-    // We know for sure the last 6 characters are going to be the ending.
-    // Lets create a buffer with those 6 characters without toString conversion.
-    var eofLength = 6;
-    var bufferLength = buffer.length;
-
+    var str = buffer.toString();
     var eofNeeded = false;
-    if (bufferLength >= eofLength &&
-        expectedEnding.compare(buffer.slice(bufferLength - eofLength,
-                                            bufferLength)) == 0) {
-      eofNeeded = true;
-      buffer = buffer.slice(0, bufferLength - eofLength);
+    if (str.length >= 6
+      && str.substr(str.length - 6, str.length) == '\\e\\n\\d') {
+      eofNeeded  = true;
+      buffer = buffer.slice(0, str.length - 6);
     }
 
-    if (bufferLength == eofLength && eofNeeded) {
+    if (str.length == 6 && eofNeeded) {
       // Socket.prototype.end with no argument
     } else {
       stream.Readable.prototype.push.call(socket, buffer);
@@ -446,7 +436,7 @@ function onSocketFinish() {
     return self.destroy();
   } else {
     // Readable stream alive, shutdown only outgoing stream.
-    self._handle.shutdown(function() {
+    var err = self._handle.shutdown(function() {
       if (self._readableState.ended) {
         self.destroy();
       }
@@ -465,6 +455,7 @@ function onSocketEnd() {
     this.destroySoon();
   }
 }
+
 
 
 function Server(options, connectionListener) {
@@ -534,7 +525,7 @@ Server.prototype.listen = function() {
   self._handle.createTCP = createTCP;
   self._handle.owner = self;
 
-  err = self._handle.listen(backlog);
+  var err = self._handle.listen(backlog);
 
   if (err) {
     self._handle.close();
@@ -606,14 +597,14 @@ function onconnection(status, clientHandle) {
   var server = this.owner;
 
   if (status) {
-    server.emit('error', new Error('accept error: ' + Tcp.errname(status)));
+    server.emit('error', new Error('accept error: ' + TCP.errname(status)));
     return;
   }
 
   // Create socket object for connecting client.
   var socket = new Socket({
     handle: clientHandle,
-    allowHalfOpen: server.allowHalfOpen,
+    allowHalfOpen: server.allowHalfOpen
   });
   socket._server = server;
 

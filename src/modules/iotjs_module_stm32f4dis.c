@@ -17,12 +17,12 @@
 #include "iotjs_module_stm32f4dis.h"
 
 
-jerry_value_t iotjs_init_stm32f4dis() {
-  jerry_value_t stm32f4dis = jerry_create_object();
+iotjs_jval_t InitStm32f4dis() {
+  iotjs_jval_t stm32f4dis = iotjs_jval_create_object();
 
 #if defined(__NUTTX__)
 
-  iotjs_stm32f4dis_pin_initialize(stm32f4dis);
+  iotjs_stm32f4dis_pin_initialize(&stm32f4dis);
 
 #endif
 

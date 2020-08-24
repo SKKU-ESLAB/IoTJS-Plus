@@ -68,7 +68,7 @@ HEAPSIZE = $(CONFIG_IOTJS_HEAPSIZE)
 ASRCS = setjmp.S
 CSRCS = jerry_port.c
 MAINSRC = iotjs_main.c
-LIBS = libhttpparser.a libiotjs.a libjerry-core.a libtuv.a libjerry-libm.a libjerry-ext.a
+LIBS = libhttpparser.a libiotjs.a libjerry-core.a libtuv.a libjerry-libm.a
 
 AOBJS = $(ASRCS:.S=$(OBJEXT))
 COBJS = $(CSRCS:.c=$(OBJEXT))
@@ -88,12 +88,12 @@ ifneq ($(CONFIG_BUILD_KERNEL),y)
 endif
 
 ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-  BIN = $(APPDIR)\libapps$(LIBEXT)
+  BIN = ..\..\libapps$(LIBEXT)
 else
 ifeq ($(WINTOOL),y)
-  BIN = $(APPDIR)\\libapps$(LIBEXT)
+  BIN = ..\\..\\libapps$(LIBEXT)
 else
-  BIN = $(APPDIR)/libapps$(LIBEXT)
+  BIN = ../../libapps$(LIBEXT)
 endif
 endif
 

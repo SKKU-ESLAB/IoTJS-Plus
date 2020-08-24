@@ -13,7 +13,8 @@
  * limitations under the License.
  */
 
-var gpio = require('gpio');
+var Gpio = require('gpio');
+var gpio = new Gpio();
 
 var testGpioInfo = [
   {
@@ -37,7 +38,7 @@ testGpioInfo.forEach(function(info) {
     direction: gpio.DIRECTION.IN
   }, function() {
     switchGpio.on('change', function() {
-      console.log('pin:', info.pin, ', current value:', switchGpio.readSync());
+      console.log('pin:', info.pin, ', current value:', this.readSync());
     });
   });
 });

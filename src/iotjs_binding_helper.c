@@ -20,78 +20,81 @@
 #include <string.h>
 
 
-void iotjs_uncaught_exception(jerry_value_t jexception) {
-  const jerry_value_t process = iotjs_module_get("process");
+void iotjs_uncaught_exception(const iotjs_jval_t* jexception) {
+  const iotjs_jval_t* process = iotjs_module_get(MODULE_PROCESS);
 
-  jerry_value_t jonuncaughtexception =
+  iotjs_jval_t jonuncaughtexception =
       iotjs_jval_get_property(process, IOTJS_MAGIC_STRING__ONUNCAUGHTEXCEPTION);
-  IOTJS_ASSERT(jerry_value_is_function(jonuncaughtexception));
+  IOTJS_ASSERT(iotjs_jval_is_function(&jonuncaughtexception));
 
-  jerry_value_t jres =
-      jerry_call_function(jonuncaughtexception, process, &jexception, 1);
+  iotjs_jargs_t args = iotjs_jargs_create(1);
+  iotjs_jargs_append_jval(&args, jexception);
 
-  jerry_release_value(jonuncaughtexception);
+  bool throws;
+  iotjs_jval_t jres =
+      iotjs_jhelper_call(&jonuncaughtexception, process, &args, &throws);
 
-  if (jerry_value_is_error(jres)) {
+  iotjs_jargs_destroy(&args);
+  iotjs_jval_destroy(&jres);
+  iotjs_jval_destroy(&jonuncaughtexception);
+
+  if (throws) {
     iotjs_environment_t* env = iotjs_environment_get();
 
     if (!iotjs_environment_is_exiting(env)) {
       iotjs_set_process_exitcode(2);
-      iotjs_environment_set_state(env, kExiting);
+      iotjs_environment_go_state_exiting(env);
     }
   }
-
-  jerry_release_value(jres);
 }
 
 
 void iotjs_process_emit_exit(int code) {
-  const jerry_value_t process = iotjs_module_get("process");
+  const iotjs_jval_t* process = iotjs_module_get(MODULE_PROCESS);
 
-  jerry_value_t jexit =
+  iotjs_jval_t jexit =
       iotjs_jval_get_property(process, IOTJS_MAGIC_STRING_EMITEXIT);
+  IOTJS_ASSERT(iotjs_jval_is_function(&jexit));
 
-  if (jerry_value_is_function(jexit)) {
-    jerry_value_t jcode = jerry_create_number(code);
-    jerry_value_t jres = jerry_call_function(jexit, process, &jcode, 1);
+  iotjs_jargs_t jargs = iotjs_jargs_create(1);
+  iotjs_jargs_append_number(&jargs, code);
 
-    if (jerry_value_is_error(jres)) {
-      iotjs_set_process_exitcode(2);
-    }
+  bool throws;
+  iotjs_jval_t jres = iotjs_jhelper_call(&jexit, process, &jargs, &throws);
 
-    jerry_release_value(jcode);
-    jerry_release_value(jres);
+  iotjs_jargs_destroy(&jargs);
+  iotjs_jval_destroy(&jres);
+  iotjs_jval_destroy(&jexit);
+
+  if (throws) {
+    iotjs_set_process_exitcode(2);
   }
-
-  jerry_release_value(jexit);
 }
 
 
 // Calls next tick callbacks registered via `process.nextTick()`.
-bool iotjs_process_next_tick(void) {
+bool iotjs_process_next_tick() {
   iotjs_environment_t* env = iotjs_environment_get();
 
   if (iotjs_environment_is_exiting(env)) {
     return false;
   }
 
-  const jerry_value_t process = iotjs_module_get("process");
+  const iotjs_jval_t* process = iotjs_module_get(MODULE_PROCESS);
 
-  jerry_value_t jon_next_tick =
+  iotjs_jval_t jon_next_tick =
       iotjs_jval_get_property(process, IOTJS_MAGIC_STRING__ONNEXTTICK);
-  IOTJS_ASSERT(jerry_value_is_function(jon_next_tick));
+  IOTJS_ASSERT(iotjs_jval_is_function(&jon_next_tick));
 
-  jerry_value_t jres =
-      jerry_call_function(jon_next_tick, jerry_create_undefined(), NULL, 0);
+  iotjs_jval_t jres =
+      iotjs_jhelper_call_ok(&jon_next_tick, iotjs_jval_get_undefined(),
+                            iotjs_jargs_get_empty());
 
-  bool ret = false;
+  IOTJS_ASSERT(iotjs_jval_is_boolean(&jres));
 
-  if (!jerry_value_is_error(jres)) {
-    ret = iotjs_jval_as_boolean(jres);
-  }
-
-  jerry_release_value(jres);
-  jerry_release_value(jon_next_tick);
+  bool ret = iotjs_jval_as_boolean(&jres);
+  iotjs_jval_destroy(&jres);
+  iotjs_jval_destroy(&jon_next_tick);
 
   return ret;
 }
@@ -100,29 +103,28 @@ bool iotjs_process_next_tick(void) {
 // Make a callback for the given `function` with `this_` binding and `args`
 // arguments. The next tick callbacks registered via `process.nextTick()`
 // will be called after the callback function `function` returns.
-void iotjs_invoke_callback(jerry_value_t jfunc, jerry_value_t jthis,
-                           const jerry_value_t* jargv, size_t jargc) {
-  jerry_value_t result =
-      iotjs_invoke_callback_with_result(jfunc, jthis, jargv, jargc);
-  jerry_release_value(result);
+void iotjs_make_callback(const iotjs_jval_t* jfunction,
+                         const iotjs_jval_t* jthis,
+                         const iotjs_jargs_t* jargs) {
+  iotjs_jval_t result =
+      iotjs_make_callback_with_result(jfunction, jthis, jargs);
+  iotjs_jval_destroy(&result);
 }
 
-jerry_value_t iotjs_invoke_callback_with_result(jerry_value_t jfunc,
-                                                jerry_value_t jthis,
-                                                const jerry_value_t* jargv,
-                                                size_t jargc) {
-  IOTJS_ASSERT(jerry_value_is_function(jfunc));
 
+iotjs_jval_t iotjs_make_callback_with_result(const iotjs_jval_t* jfunction,
+                                             const iotjs_jval_t* jthis,
+                                             const iotjs_jargs_t* jargs) {
+  // Merge PR 1496 (iotjs) to resolve Issue 106 (libtuv)
   // If the environment is already exiting just return an undefined value.
   if (iotjs_environment_is_exiting(iotjs_environment_get())) {
-    return jerry_create_undefined();
+    return *iotjs_jval_get_undefined();
   }
   // Calls back the function.
-  jerry_value_t jres = jerry_call_function(jfunc, jthis, jargv, jargc);
-  if (jerry_value_is_error(jres)) {
-    jerry_value_t errval = jerry_get_value_from_error(jres, false);
-    iotjs_uncaught_exception(errval);
-    jerry_release_value(errval);
+  bool throws;
+  iotjs_jval_t jres = iotjs_jhelper_call(jfunction, jthis, jargs, &throws);
+  if (throws) {
+    iotjs_uncaught_exception(&jres);
   }
 
   // Calls the next tick callbacks.
@@ -133,40 +135,26 @@ jerry_value_t iotjs_invoke_callback_with_result(jerry_value_t jfunc,
 }
 
 
-int iotjs_process_exitcode(void) {
-  const jerry_value_t process = iotjs_module_get("process");
+int iotjs_process_exitcode() {
+  const iotjs_jval_t* process = iotjs_module_get(MODULE_PROCESS);
 
-  jerry_value_t jexitcode =
+  iotjs_jval_t jexitcode =
       iotjs_jval_get_property(process, IOTJS_MAGIC_STRING_EXITCODE);
-  uint8_t exitcode = 0;
-  jerry_value_t num_val = jerry_value_to_number(jexitcode);
-  if (jerry_value_is_error(num_val)) {
-    exitcode = 1;
-  } else {
-    exitcode = (uint8_t)iotjs_jval_as_number(num_val);
-  }
+  IOTJS_ASSERT(iotjs_jval_is_number(&jexitcode));
 
-  uint8_t native_exitcode = iotjs_environment_get()->exitcode;
-  if (native_exitcode != exitcode && native_exitcode) {
-    exitcode = native_exitcode;
-  }
-  jerry_release_value(num_val);
-  jerry_release_value(jexitcode);
-  return (int)exitcode;
+  const int exitcode = (int)iotjs_jval_as_number(&jexitcode);
+  iotjs_jval_destroy(&jexitcode);
+
+  return exitcode;
 }
 
 
 void iotjs_set_process_exitcode(int code) {
-  const jerry_value_t process = iotjs_module_get("process");
-  jerry_value_t jstring =
-      jerry_create_string((jerry_char_t*)IOTJS_MAGIC_STRING_EXITCODE);
-  jerry_value_t jcode = jerry_create_number(code);
-  jerry_value_t ret_val = jerry_set_property(process, jstring, jcode);
-  if (jerry_value_is_error(ret_val)) {
-    iotjs_environment_get()->exitcode = 1;
-  }
+  const iotjs_jval_t* process = iotjs_module_get(MODULE_PROCESS);
+  iotjs_jval_set_property_number(process, IOTJS_MAGIC_STRING_EXITCODE, code);
+}
 
-  jerry_release_value(ret_val);
-  jerry_release_value(jstring);
-  jerry_release_value(jcode);
+
+const iotjs_jval_t* iotjs_init_process_module() {
+  return iotjs_module_initialize_if_necessary(MODULE_PROCESS);
 }

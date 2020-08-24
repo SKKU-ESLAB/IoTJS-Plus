@@ -1,5 +1,6 @@
  - [Inside IoT.js](Inside-IoT.js.md)
  - [Experimental Features](Experimental-Features.md)
+ - [Inside Validated Struct](Inside-IoT.js-Validated-Struct.md)
  - [Logging Execution](Logging-IoT.js-execution.md)
  - [Memory saving with libtuv](Memory-savings-with-libtuv.md)
  - [Optimization Tips](Optimization-Tips.md)

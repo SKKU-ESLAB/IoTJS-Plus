@@ -52,8 +52,13 @@ TUV_ROOT = fs.join(DEPS_ROOT, 'libtuv')
 # Root directory for http-parser submodule.
 HTTPPARSER_ROOT = fs.join(DEPS_ROOT, 'http-parser')
 
+# checktest
+CHECKTEST_PATH = fs.join(TOOLS_ROOT, 'check_test.js')
+
 # Build configuration file path.
 BUILD_CONFIG_PATH = fs.join(PROJECT_ROOT, 'build.config')
+BUILD_MODULE_CONFIG_PATH = fs.join(PROJECT_ROOT, 'build.module')
+BUILD_TARGET_CONFIG_PATH = fs.join(PROJECT_ROOT, 'build.target')
 
 # IoT.js build information.
-BUILD_INFO_PATH = fs.join(TEST_ROOT, 'tools', 'iotjs_build_info.js')
+BUILD_INFO_PATH = fs.join(TOOLS_ROOT, 'iotjs_build_info.js')

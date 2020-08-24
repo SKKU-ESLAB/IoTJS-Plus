@@ -2,19 +2,18 @@
 
 The following table shows ADC module APIs available for each platform.
 
-|  | Linux<br/>(Ubuntu) | Tizen<br/>(Raspberry Pi) | Raspbian<br/>(Raspberry Pi) | NuttX<br/>(STM32F4-Discovery) | TizenRT<br/>(Artik053) |
-| :---: | :---: | :---: | :---: | :---: | :---: |
-| adc.open | X | X | X | O | O |
-| adc.openSync | X | X | X | O | O |
-| adcpin.read | X | X | X | O | O |
-| adcpin.readSync | X | X | X | O | O |
-| adcpin.close | X | X | X | O | O |
-| adcpin.closeSync | X | X | X | O | O |
+|  | Linux<br/>(Ubuntu) | Raspbian<br/>(Raspberry Pi) | NuttX<br/>(STM32F4-Discovery) | TizenRT<br/>(Artik053) |
+| :---: | :---: | :---: | :---: | :---: |
+| adc.open | O | X | O | - |
+| adcpin.read | O | X | O | - |
+| adcpin.readSync | O | X | O | - |
+| adcpin.close | O | X | O | - |
+| adcpin.closeSync | O | X | O | - |
 
 
-# ADC
+## Class: ADC
 
-This module allows reading analogue data from hardware pins.
+This class allows reading analogue data from hardware pins.
 
 The hardware pins can be read from or written to, therefore they are called bidirectional IO pins. This module provides the reading part.
 
@@ -22,21 +21,21 @@ On NuttX, you have to know the number of pins that is defined on the target boar
   * [STM32F4-discovery](../targets/nuttx/stm32f4dis/IoT.js-API-Stm32f4dis.md#adc-pin)
 
 
-### adc.open(configuration, callback)
+### new ADC(configuration[, callback])
+
 * `configuration` {Object}
   * `device` {string} Mandatory configuration on Linux.
-  * `pin` {number} Mandatory configuration on NuttX and TizenRT.
+  * `pin` {int} Mandatory configuration on NuttX.
 * `callback` {Function}
   * `err`: {Error|null}
-  * `adcpin` {Object} An instance of AdcPin.
-* Returns: {Object} An instance of AdcPin.
+* Returns: `AdcPin` {adc.AdcPin}
 
-Opens an ADC pin with the specified configuration asynchronously.
+Opens an ADC pin with the specified configuration.
 
 **Example**
 ```js
-var adc = require('adc');
-var adc0 = adc.open({
+var Adc = require('adc');
+var adc0 = new Adc({
   device: '/sys/devices/12d10000.adc/iio:device0/in_voltage0_raw'
 }, function(err) {
   if (err) {
@@ -45,31 +44,9 @@ var adc0 = adc.open({
 });
 ```
 
-### adc.openSync(configuration)
-* `configuration` {Object}
-  * `device` {string} Mandatory configuration on Linux.
-  * `pin` {number} Mandatory configuration on NuttX and TizenRT.
+### adc.read(callback)
 * `callback` {Function}
   * `err`: {Error|null}
-* Returns: {Object} An instance of AdcPin.
-
-Opens an ADC pin with the specified configuration synchronously.
-
-**Example**
-```js
-var adc = require('adc');
-var adc0 = adc.openSync({
-  device: '/sys/devices/12d10000.adc/iio:device0/in_voltage0_raw'
-});
-```
-
-
-## Class: AdcPin
-
-### adcpin.read(callback)
-* `callback` {Function}
-  * `err`: {Error|null}
-  * `{number}` Analog value.
 
 Reads the analog value from the pin asynchronously.
 
@@ -86,8 +63,8 @@ adc0.read(function(err, value) {
 ```
 
 
-### adcpin.readSync()
-* Returns: `{number}` Analog value.
+### adc.readSync()
+* Returns: `{int}` Analog value.
 
 Reads the analog value from the pin synchronously.
 
@@ -98,7 +75,7 @@ console.log('value:', value);
 ```
 
 
-### adcpin.close([callback])
+### adc.close([callback])
 * `callback` {Function}
   * `err`: {Error|null}
 
@@ -116,7 +93,7 @@ adc0.close(function(err) {
 ```
 
 
-### adcpin.closeSync()
+### adc.closeSync()
 
 Closes ADC pin synchronously. This function must be called after the work of ADC finished.
 

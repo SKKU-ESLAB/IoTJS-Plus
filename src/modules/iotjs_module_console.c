@@ -14,51 +14,62 @@
  */
 
 #include "iotjs_def.h"
-#include "iotjs_debuglog.h"
+#include "jerry-board-config.h"
+
+#include <stdlib.h>
+
+#ifdef PROF_MODE_ARTIK053
+#include <sys/boardctl.h>
+#endif
 
 // This function should be able to print utf8 encoded string
 // as utf8 is internal string representation in Jerryscript
-static jerry_value_t console_print(const jerry_value_t* jargv,
-                                   const jerry_length_t jargc, FILE* out_fd) {
-  DJS_CHECK_ARGS(1, string);
-  iotjs_string_t msg = JS_GET_ARG(0, string);
+static void Print(iotjs_jhandler_t* jhandler, FILE* out_fd) {
+  JHANDLER_CHECK_ARGS(1, string);
+
+  iotjs_string_t msg = JHANDLER_GET_ARG(0, string);
   const char* str = iotjs_string_data(&msg);
   unsigned str_len = iotjs_string_size(&msg);
   unsigned idx = 0;
 
-  if (iotjs_console_out) {
-    int level = (out_fd == stdout) ? DBGLEV_INFO : DBGLEV_ERR;
-    iotjs_console_out(level, "%s", str);
-  } else {
-    for (idx = 0; idx < str_len; idx++) {
-      if (str[idx] != 0) {
-        fprintf(out_fd, "%c", str[idx]);
-      } else {
-        fprintf(out_fd, "\\u0000");
-      }
+  for (idx = 0; idx < str_len; idx++) {
+    if (str[idx] != 0) {
+      fprintf(out_fd, "%c", str[idx]);
+    } else {
+      fprintf(out_fd, "\\u0000");
     }
   }
-
   iotjs_string_destroy(&msg);
-  return jerry_create_undefined();
 }
 
 
-JS_FUNCTION(console_stdout) {
-  return console_print(jargv, jargc, stdout);
+JHANDLER_FUNCTION(Stdout) {
+  Print(jhandler, stdout);
 }
 
 
-JS_FUNCTION(console_stderr) {
-  return console_print(jargv, jargc, stderr);
+JHANDLER_FUNCTION(Stderr) {
+  Print(jhandler, stderr);
 }
 
+#ifdef PROF_MODE_ARTIK053
+JHANDLER_FUNCTION(Reboot) {
+  // jmem-profiler
+  jerry_will_cleanup(); // Final profiling result
 
-jerry_value_t iotjs_init_console(void) {
-  jerry_value_t console = jerry_create_object();
+  // reboot the device in force
+  boardctl(BOARDIOC_RESET, EXIT_SUCCESS);
+}
+#endif
 
-  iotjs_jval_set_method(console, IOTJS_MAGIC_STRING_STDOUT, console_stdout);
-  iotjs_jval_set_method(console, IOTJS_MAGIC_STRING_STDERR, console_stderr);
+iotjs_jval_t InitConsole() {
+  iotjs_jval_t console = iotjs_jval_create_object();
+
+  iotjs_jval_set_method(&console, IOTJS_MAGIC_STRING_STDOUT, Stdout);
+  iotjs_jval_set_method(&console, IOTJS_MAGIC_STRING_STDERR, Stderr);
+#ifdef PROF_MODE_ARTIK053
+  iotjs_jval_set_method(&console, IOTJS_MAGIC_STRING_REBOOT, Reboot);
+#endif
 
   return console;
 }

@@ -13,7 +13,8 @@
  * limitations under the License.
  */
 
-var uart = require('uart');
+var UART = require('uart');
+var uart = new UART();
 var res = uart.open({
   device: '/dev/ttyS1',
   baudRate: 115200,

@@ -26,28 +26,16 @@ ifeq ($(CONFIG_DEBUG),y)
 else
   IOTJS_BUILDTYPE = release
 endif
-IOTJS_OS ?= tizenrt
-IOTJS_ARCH ?= arm
-IOTJS_BUILDCONFIG ?= ${IOTJS_ARCH}-${IOTJS_OS}
-IOTJS_LIB_DIR ?= $(IOTJS_ROOT_DIR)/build/${IOTJS_BUILDCONFIG}/$(IOTJS_BUILDTYPE)/lib
-IOTJS_ROOT_DIR ?= .
-IOTJS_PROFILE_FILE ?= ${IOTJS_ROOT_DIR}/test/profiles/tizenrt.profile
+IOTJS_LIB_DIR = $(IOTJS_ROOT_DIR)/build/arm-tizenrt/$(IOTJS_BUILDTYPE)/lib
 
 all: build
 .PHONY: depend clean distclean
 
-${TOPDIR}/include/sys/uio.h:
-	@mkdir -p ${@D}
-	@echo "#include <uio.h>" > $@
-
-build: $(IOTJS_ROOT_DIR)/tools/build.py ${IOTJS_PROFILE_FILE} ${TOPDIR}/include/sys/uio.h
-	$(Q) python $< \
-	--target-arch=$(CONFIG_ARCH) \
-	--target-os=${IOTJS_OS} \
+build:
+	$(Q) python $(IOTJS_ROOT_DIR)/tools/build.py --target-arch=$(CONFIG_ARCH) --target-os=tizenrt \
 	--sysroot=$(TOPDIR) --target-board=$(CONFIG_ARCH_BOARD) --jerry-heaplimit=$(CONFIG_IOTJS_JERRY_HEAP) \
-	--buildtype=$(IOTJS_BUILDTYPE) --no-init-submodule $(IOTJS_BUILD_OPTION) \
-	--profile ${IOTJS_PROFILE_FILE}
-	$(Q) cp $(IOTJS_LIB_DIR)/*.a $(IOTJS_ROOT_DIR)
+	--buildtype=$(IOTJS_BUILDTYPE) --no-init-submodule $(IOTJS_BUILD_OPTION) --external-include-dir=$(TOPDIR)/net/lwip/src/include
+	$(Q) cp $(IOTJS_LIB_DIR)/*.a $(TOPDIR)/$(EXTDIR)/iotjs
 
 depend:
 

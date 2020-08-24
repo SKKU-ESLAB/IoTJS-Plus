@@ -14,8 +14,10 @@
  */
 
 
-var Stream = require('stream_internal');
+var stream = require('stream');
 var util = require('util');
+var Stream = stream.Stream;
+var Duplex = stream.Duplex;
 
 var defaultHighWaterMark = 128;
 
@@ -34,7 +36,7 @@ function WritableState(options) {
   this.length = 0;
 
   // high water mark.
-  // The point where write() starts returning false.
+  // The point where write() starts retuning false.
   this.highWaterMark = (options && util.isNumber(options.highWaterMark)) ?
     options.highWaterMark : defaultHighWaterMark;
 
@@ -60,7 +62,7 @@ function WritableState(options) {
 
 
 function Writable(options) {
-  if (!(this instanceof Writable) && options._isDuplex !== true) {
+  if (!(this instanceof Writable) && !(this instanceof stream.Duplex)) {
     return new Writable(options);
   }
 
@@ -100,9 +102,9 @@ Writable.prototype.write = function(chunk, callback) {
 
 // This function object never to be called. concrete stream should override
 // this method.
-Writable.prototype._write = function(/* chunk, callback, onwrite */) {
+Writable.prototype._write = function(chunk, callback, onwrite) {
   throw new Error('unreachable');
-};
+}
 
 
 Writable.prototype.end = function(chunk, callback) {
@@ -111,13 +113,10 @@ Writable.prototype.end = function(chunk, callback) {
   // Because NuttX cannot poll 'EOF',so forcely raise EOF event.
   if (process.platform === 'nuttx') {
     if (!state.ending) {
-      var eof = '\\e\\n\\d';
       if (util.isNullOrUndefined(chunk)) {
-        chunk = eof;
-      } else if (Buffer.isBuffer(chunk)) {
-        chunk = Buffer.concat([chunk, new Buffer(eof)]);
+        chunk = '\\e\\n\\d';
       } else {
-        chunk += eof;
+        chunk += '\\e\\n\\d';
       }
     }
   }

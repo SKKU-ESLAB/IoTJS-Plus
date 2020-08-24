@@ -13,8 +13,6 @@
  * limitations under the License.
  */
 
-var Buffer = require('buffer');
-
 
 function isNull(arg) {
   return arg === null;
@@ -59,48 +57,33 @@ function isFunction(arg) {
 }
 
 
+function isBuffer(arg) {
+  return arg instanceof Buffer;
+}
+
+
 function inherits(ctor, superCtor) {
   ctor.prototype = Object.create(superCtor.prototype, {
     constructor: {
       value: ctor,
       enumerable: false,
       writable: true,
-      configurable: true,
-    },
-  });
-}
-
-
-function mixin(target) {
-  if (isNullOrUndefined(target)) {
-    throw new TypeError('target cannot be null or undefined');
-  }
-
-  for (var i = 1; i < arguments.length; ++i) {
-    var source = arguments[i];
-    if (!isNullOrUndefined(source)) {
-      for (var prop in source) {
-        if (source.hasOwnProperty(prop)) {
-          target[prop] = source[prop];
-        }
-      }
+      configurable: true
     }
-  }
+  });
+};
 
-  return target;
-}
 
 function format(s) {
-  var i;
   if (!isString(s)) {
     var arrs = [];
-    for (i = 0; i < arguments.length; ++i) {
+    for (var i = 0; i < arguments.length; ++i) {
       arrs.push(formatValue(arguments[i]));
     }
     return arrs.join(' ');
   }
 
-  i = 1;
+  var i = 1;
   var args = arguments;
   var arg_string;
   var str = '';
@@ -126,7 +109,7 @@ function format(s) {
         try {
           arg_string = JSON.stringify(args[i]);
         } catch (_) {
-          arg_string = '[Circular]';
+          arg_string = '[Circular]'
         }
         break;
       case '%':
@@ -141,7 +124,8 @@ function format(s) {
 
     if (i >= args.length) {
       str = str + '%' + s.charAt(end + 1);
-    } else {
+    }
+    else {
       i++;
       str += arg_string;
     }
@@ -163,12 +147,6 @@ function formatValue(v) {
     return 'undefined';
   } else if (v === null) {
     return 'null';
-  } else if (Array.isArray(v)) {
-    return '[' + v.toString() + ']';
-  } else if (v instanceof Error) {
-    return v.toString();
-  } else if (typeof v === 'object') {
-    return JSON.stringify(v, null, 2);
   } else {
     return v.toString();
   }
@@ -182,7 +160,7 @@ function stringToNumber(value, default_value) {
 
 
 function errnoException(err, syscall, original) {
-  var errname = 'error'; // uv.errname(err);
+  var errname = "error"; // uv.errname(err);
   var message = syscall + ' ' + errname;
 
   if (original)
@@ -194,7 +172,7 @@ function errnoException(err, syscall, original) {
   e.syscall = syscall;
 
   return e;
-}
+};
 
 
 function exceptionWithHostPort(err, syscall, address, port, additional) {
@@ -216,7 +194,7 @@ function exceptionWithHostPort(err, syscall, address, port, additional) {
   }
 
   return ex;
-}
+};
 
 
 exports.isNull = isNull;
@@ -228,11 +206,10 @@ exports.isString = isString;
 exports.isObject = isObject;
 exports.isFinite = isFinite;
 exports.isFunction = isFunction;
-exports.isBuffer = Buffer.isBuffer;
+exports.isBuffer = isBuffer;
 exports.isArray = Array.isArray;
 exports.exceptionWithHostPort = exceptionWithHostPort;
 exports.errnoException = errnoException;
 exports.stringToNumber = stringToNumber;
 exports.inherits = inherits;
-exports.mixin = mixin;
 exports.format = format;

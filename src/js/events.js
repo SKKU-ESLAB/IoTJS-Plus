@@ -19,10 +19,9 @@ var util = require('util');
 
 function EventEmitter() {
   this._events = {};
-}
+};
 
-module.exports = EventEmitter;
-EventEmitter.EventEmitter = EventEmitter;
+module.exports.EventEmitter = EventEmitter;
 
 
 EventEmitter.prototype.emit = function(type) {
@@ -36,7 +35,7 @@ EventEmitter.prototype.emit = function(type) {
     if (err instanceof Error) {
       throw err;
     } else {
-      throw Error('Uncaught \'error\' event');
+      throw Error("Uncaught 'error' event");
     }
   }
 

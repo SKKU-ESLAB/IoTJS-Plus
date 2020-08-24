@@ -2,63 +2,53 @@
 
 The following shows I2C module APIs available for each platform.
 
-|  | Linux<br/>(Ubuntu) | Tizen<br/>(Raspberry Pi) | Raspbian<br/>(Raspberry Pi) | NuttX<br/>(STM32F4-Discovery) | TizenRT<br/>(Artik053) |
-| :---: | :---: | :---: | :---: | :---: | :---: |
-| i2c.open | X | O | O | O | O |
-| i2c.openSync | X | O | O | O | O |
-| i2cbus.read | X | O | O | O | O |
-| i2cbus.readSync | X | O | O | O | O |
-| i2cbus.write | X | O | O | O | O |
-| i2cbus.writeSync | X | O | O | O | O |
-| i2cbus.close | X | O | O | O | O |
-| i2cbus.closeSync | X | O | O | O | O |
+|  | Linux<br/>(Ubuntu) | Raspbian<br/>(Raspberry Pi) | NuttX<br/>(STM32F4-Discovery) | TizenRT<br/>(Artik053) |
+| :---: | :---: | :---: | :---: | :---: |
+| i2c.open | O | O | O | - |
+| i2cbus.read | O | O | O | - |
+| i2cbus.write | O | O | O | - |
+| i2cbus.close | O | O | O | - |
 
 
 # I2C
 
-The I2C module supports the I2C protocol. I2C bus has two signals - SDA and SCL.
+The I2C class supports the I2C protocol. I2C bus has two signals - SDA and SCL.
 
-* On Tizen, the bus number is defined in [this documentation](../targets/tizen/SystemIO-Pin-Information-Tizen.md#i2c).
 
-### i2c.open(configuration, callback)
-* `configuration` {Object} Configuration for open I2CBus.
-  * `device` {string} Device path. (only on Linux)
-  * `bus` {number} The specified bus number. (Tizen, TizenRT and NuttX only)
-  * `address` {number} Device address.
-* `callback` {Function}
-  * `err` {Error|null}
-  * `i2cBus` {Object} An instance of I2CBus.
-* Returns: {Object} An instance of I2CBus.
+### new I2C()
 
-Get I2CBus object with configuration asynchronously.
+Returns with an I2C object.
 
 **Example**
 
 ```js
-var i2c = require('i2c');
+var I2C = require('i2c');
 
-i2c.open({device: '/dev/i2c-1', address: 0x23}, function(err, wire) {
+var i2c = new I2C();
+```
+
+
+### i2c.open(configuration[, callback])
+* `configuration` {Object} Configuration for open I2CBus.
+  * `device` {string(linux)|number(NuttX)} Device path.
+  * `address` {number} Device address.
+* `callback` {Function}
+  * `err` {Error|null}
+* Returns: {Object} An instance of I2CBus.
+
+Get I2CBus object with configuration.
+
+**Example**
+
+```js
+var I2C = require('i2c');
+
+var i2c = new I2C();
+var i2c_bus = i2c.open({device: '/dev/i2c-1', address: 0x23}, function(err) {
   if (err) {
     throw err;
   }
 });
-```
-
-### i2c.openSync(configuration)
-* `configuration` {Object} Configuration for open I2CBus.
-  * `device` {string} Device path. (only on Linux)
-  * `bus` {number} The specified bus number. (Tizen, TizenRT and NuttX only)
-  * `address` {number} Device address.
-* Returns: {Object} An instance of I2CBus.
-
-Get I2CBus object with configuration synchronously.
-
-**Example**
-
-```js
-var i2c = require('i2c');
-
-var wire = i2c.openSync({device: '/dev/i2c-1', address: 0x23});
 ```
 
 
@@ -71,36 +61,21 @@ var wire = i2c.openSync({device: '/dev/i2c-1', address: 0x23});
   * `err` {Error|null}
   * `res` {Array} Array of bytes.
 
-Read bytes from I2C device asynchronously.
+Read bytes from I2C device.
 
 **Example**
 
 ```js
-var i2c = require('i2c');
+var I2C = require('i2c');
 
-i2c.open({device: '/dev/i2c-1', address: 0x23}, function(err, wire) {
-  wire.read(2, function(err, res) {
-    if (!err) {
-      console.log('read result: ' + res);
-    }
-  });
+var i2c = new I2C();
+var i2c_bus = i2c.open({device: '/dev/i2c-1', address: 0x23});
+
+i2c_bus.read(2, function(err, res) {
+  if (!err) {
+    console.log('read result: ' + res);
+  }
 });
-```
-
-### i2cbus.readSync(length)
-* `length` {number} Number of bytes to read.
-* Returns: {Array} Array of bytes.
-
-Read bytes from I2C device synchronously.
-
-**Example**
-
-```js
-var i2c = require('i2c');
-
-var wire = i2c.openSync({device: '/dev/i2c-1', address: 0x23});
-var res = wire.readSync(2);
-console.log(res);
 ```
 
 ### i2cbus.write(bytes[, callback])
@@ -108,61 +83,35 @@ console.log(res);
 * `callback` {Function}
   * `err` {Error|null}
 
-Write bytes to I2C device asynchronously.
+Write bytes to I2C device.
 
 **Example**
 
 ```js
-var i2c = require('i2c');
+var I2C = require('i2c');
 
-i2c.open({device: '/dev/i2c-1', address: 0x23}, function(err, wire){
-  wire.write([0x10], function(err) {
-    if(!err) {
-      console.log('write done');
-    }
-  });
+var i2c = new I2C();
+var i2c_bus = i2c.open({device: '/dev/i2c-1', address: 0x23});
+
+i2c_bus.write([0x10], function(err) {
+  if(!err) {
+    console.log('write done');
+  }
 });
 ```
 
-### i2cbus.writeSync(bytes)
-* `bytes` {Array} Array of bytes to write.
 
-Write bytes to I2C device synchronously.
+### i2cbus.close()
 
-**Example**
-
-```js
-var i2c = require('i2c');
-
-var wire = i2c.openSync({device: '/dev/i2c-1', address: 0x23});
-wire.writeSync([0x10]);
-```
-
-### i2cbus.close([callback])
-* `callback` {Function}
-  * `err` {Error|null}
-
-Close I2C device asynchronously.
+Close I2C device.
 
 **Example**
 
 ```js
-var i2c = require('i2c');
+var I2C = require('i2c');
 
-i2c.open({device: '/dev/i2c-1', address: 0x23}, function(err, wire) {
-  wire.close();
-});
-```
+var i2c = new I2C();
+var i2c_bus = i2c.open({device: '/dev/i2c-1', address: 0x23});
 
-### i2cbus.closeSync()
-
-Close I2C device synchronously.
-
-**Example**
-
-```js
-var i2c = require('i2c');
-
-var wire = i2c.openSync({device: '/dev/i2c-1', address: 0x23});
-wire.closeSync();
+i2c_bus.close();
 ```
